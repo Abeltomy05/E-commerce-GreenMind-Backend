@@ -124,7 +124,6 @@ const getCartData = async (req, res) => {
     }
   };
 
-
   const getCartDataForCartPage = async(req,res)=>{
     try{
       const userId = req.params.id;
