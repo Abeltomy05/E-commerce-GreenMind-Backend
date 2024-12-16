@@ -123,7 +123,7 @@ const getCartData = async (req, res) => {
       });
     }
   };
-
+  
   const getCartDataForCartPage = async(req,res)=>{
     try{
       const userId = req.params.id;
@@ -162,26 +162,79 @@ const getCartData = async (req, res) => {
 
   const updateCartItemQuantity = async (req, res) => {
     try {
+
       const { id } = req.params;
-      const { quantity,userId } = req.body;
-      // const userId = req.user.id;
+      const { quantity, userId } = req.body;
+
+      if (!id || !userId || quantity === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required parameters'
+        });
+      }
+
   
-      const cartItem = await Cart.findOneAndUpdate(
+      const cartItem = await Cart.findOne({ _id: id, user: userId })
+        .populate({
+          path: 'product',
+          select: 'variants'
+        });
+  
+
+      if (!cartItem.product) {
+        console.log('Product not found for cart item');
+        return res.status(404).json({
+          success: false,
+          message: 'Product not found'
+        });
+      }
+  
+      // Find the specific variant
+      const variant = cartItem.product.variants.find(v => 
+        v.size === cartItem.variant.size && v.price === cartItem.variant.price
+      );
+
+      if (!variant) {
+        console.log('Variant not found:', {
+          variantId: cartItem.variant,
+          availableVariants: cartItem.product.variants
+        });
+        return res.status(404).json({
+          success: false,
+          message: 'Product variant not found'
+        });
+      }
+  
+      // Check stock limit
+      if (quantity > variant.stock) {
+        return res.status(200).json({
+          success: false,
+          message: `Only ${variant.stock} items available in stock`,
+          availableStock: variant.stock
+        });
+      }
+
+    
+  
+      // Update the cart item
+      const updatedCartItem = await Cart.findOneAndUpdate(
         { _id: id, user: userId },
         { quantity },
         { new: true }
       );
-  
-      if (!cartItem) {
-        return res.status(404).json({
+
+      if (!updatedCartItem) {
+        console.log('Failed to update cart item');
+        return res.status(500).json({
           success: false,
-          message: 'Cart item not found'
+          message: 'Failed to update cart item'
         });
       }
   
       res.status(200).json({
         success: true,
-        data: cartItem
+        data: updatedCartItem,
+        availableStock: variant.stock
       });
     } catch (error) {
       res.status(500).json({
