@@ -6,33 +6,33 @@ const User = require('../model/userModel')
 const Cart = require('../model/cartModel')
 
 
-// const getCartData = async (req, res) => {
-//     try {
-//       const { id } = req.params;
-//       console.log(id)
-//       const cartItems = await Cart.find({ user: id })
-//         .populate({
-//           path: 'product',
-//           select: 'name variants images category',
-//           populate: {
-//             path: 'category',
-//             select: 'name' 
-//           }
-//         })
-//         .lean();
+const getCartData = async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log(id)
+      const cartItems = await Cart.find({ user: id })
+        .populate({
+          path: 'product',
+          select: 'name variants images category',
+          populate: {
+            path: 'category',
+            select: 'name' 
+          }
+        })
+        .lean();
   
-//       res.status(200).json({
-//         success: true,
-//         items: cartItems
-//       });
-//     } catch (error) {
-//       res.status(500).json({ 
-//         success: false, 
-//         message: 'Failed to retrieve cart items',
-//         error: error.message 
-//       });
-//     }
-//   };
+      res.status(200).json({
+        success: true,
+        items: cartItems
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to retrieve cart items',
+        error: error.message 
+      });
+    }
+  };
 
   const addToCart = async (req, res) => {
     try {
