@@ -26,8 +26,10 @@ const transporter = nodemailer.createTransport({
 const generateAccessToken = (user) => {
     return jwt.sign(
         { 
-            userId: user._id, 
-            email: user.email 
+            _id: user._id, 
+            email: user.email,
+            firstname:user.firstname,
+            username:user.username,
         }, 
         process.env.ACCESS_TOKEN_SECRET, 
         { expiresIn: '15m' }
@@ -37,16 +39,14 @@ const generateAccessToken = (user) => {
 const generateRefreshToken = (user) => {
     return jwt.sign(
         { 
-            userId: user._id, 
-            email: user.email 
+            _id: user._id, 
         }, 
         process.env.REFRESH_TOKEN_SECRET, 
         { expiresIn: '7d' }
     );
 };
 
-const refreshTokenController = async (req, res) => {
-    try {
+const refreshAccessToken = async (req, res) => {
       const refreshToken = req.cookies.refreshToken;
   
       if (!refreshToken) {
@@ -54,29 +54,39 @@ const refreshTokenController = async (req, res) => {
       }
   
       // Verify refresh token
-      const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-      
-      const user = await User.findById(decoded.userId);
-  
-      if (!user) {
-        return res.status(401).json({ message: 'Invalid token' });
+      try{
+
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        const user = await User.findById(decoded?.userId);
+
+        if (!user) {
+          return res.status(401).json({ message: 'Invalid refresh token' });
+        }
+        if(refreshToken !== user?.refreshToken){
+          return res.status(401).json({ message: 'Invalid refresh token' });
+        }
+        const accessToken = generateAccessToken(user);
+        const newRefreshToken = generateRefreshToken(user)
+
+        res.status(200).cookie('accessToken', accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 15 * 60 * 1000 // 15 minutes
+        });
+
+        res.status(200).cookie('refreshToken', newRefreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 15 minutes
+        });
+      }catch(error){
+
       }
-  
-     
-      const newAccessToken = generateAccessToken(user);
-  
-     
-      res.cookie('accessToken', newAccessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 15 * 60 * 1000 // 15 minutes
-      });
-  
+    
       res.json({ message: 'Token refreshed' });
-    } catch (error) {
-      res.status(401).json({ message: 'Invalid refresh token' });
-    }
+
   };
 
 
@@ -356,6 +366,11 @@ const getUserData = async(req,res)=>{
 
 const logout = async (req, res) => {
     try {
+
+      await User.updateOne(
+        { _id: req.user._id },
+        { $unset: { refreshToken: 1 } }
+      );
       
       res.clearCookie('accessToken', {
         httpOnly: true,
@@ -381,7 +396,7 @@ module.exports = {
     signup,
     verifyOTP,
     resendOTP,
-    refreshTokenController,
+    refreshAccessToken,
     login,
     logout,
     getProductData,

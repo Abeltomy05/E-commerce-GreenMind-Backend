@@ -1,16 +1,16 @@
 const express = require("express");
 const userRoute = express.Router();
-const {signup,verifyOTP,resendOTP,refreshTokenController,login,getProductData,getSingleProductData,getUserData} = require("../controller/userController")
+const {signup,verifyOTP,resendOTP,refreshAccessToken,login,getProductData,getSingleProductData,getUserData} = require("../controller/userController")
 const {getProfiledata,updateUserProfile,changePassword,profileImgUpdate,getAdressOfaUser,setNewAddressForUser,updateAddress,deleteAddress} = require('../controller/userDashboard')
 const {getCartData,addToCart,getCartDataForCartPage,updateCartItemQuantity,removeCartItem} = require("../controller/cartController")
 const {placeOrder,getOrderData,getSingleOrderDetail,cancelOrder} = require("../controller/orderController")
-const authMiddleware = require("../middleware/authMiddleware");
+const {verifyJWT} = require("../middleware/authMiddleware");
 const {getCategoryName,productTypes,productFilter} = require('../controller/filterController')
 
 userRoute.post("/signup",signup);
 userRoute.post("/verifyOTP",verifyOTP)
 userRoute.post("/resendOTP",resendOTP)
-userRoute.post('/refresh-token', refreshTokenController);
+userRoute.post('/refresh-token', refreshAccessToken);
 userRoute.post("/login",login);
 userRoute.get("/getproductdata",getProductData);
 userRoute.get("/product-view/:id",getSingleProductData);
