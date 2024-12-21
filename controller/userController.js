@@ -223,7 +223,7 @@ const verifyOTP = async(req,res)=>{
 const resendOTP = async(req,res)=>{
     try{
        const{userId, email} = req.body;
-      console.log(req.body);
+
       
        if(!userId || !email){
         throw Error("Empty otp details are not allowed");
@@ -341,7 +341,6 @@ const getUserData = async(req,res)=>{
     try{
       
       const id = req.params.id;
-      console.log(id)
       const user = await User.findById(id);
 
       if (!user) {

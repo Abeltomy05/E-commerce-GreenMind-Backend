@@ -12,7 +12,6 @@ const productSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    required: true,
     enum: ['Indoor', 'Outdoor', 'Hanging', 'Desktop'],
   },
   brand: {

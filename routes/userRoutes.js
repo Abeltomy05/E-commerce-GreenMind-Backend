@@ -3,7 +3,9 @@ const userRoute = express.Router();
 const {signup,verifyOTP,resendOTP,refreshTokenController,login,getProductData,getSingleProductData,getUserData} = require("../controller/userController")
 const {getProfiledata,updateUserProfile,changePassword,profileImgUpdate,getAdressOfaUser,setNewAddressForUser,updateAddress,deleteAddress} = require('../controller/userDashboard')
 const {getCartData,addToCart,getCartDataForCartPage,updateCartItemQuantity,removeCartItem} = require("../controller/cartController")
+const {placeOrder,getOrderData,getSingleOrderDetail,cancelOrder} = require("../controller/orderController")
 const authMiddleware = require("../middleware/authMiddleware");
+const {getCategoryName,productTypes,productFilter} = require('../controller/filterController')
 
 userRoute.post("/signup",signup);
 userRoute.post("/verifyOTP",verifyOTP)
@@ -28,5 +30,14 @@ userRoute.post("/addtocart",addToCart)
 userRoute.get("/getcartdataforcartpage/:id",getCartDataForCartPage)
 userRoute.patch("/updatequantity/:id",updateCartItemQuantity)
 userRoute.delete("/removecartitem/:id",removeCartItem)
+//order
+userRoute.post("/placeorder",placeOrder)
+userRoute.get("/getorderdata/:id",getOrderData)
+userRoute.get("/orderdetails/:id",getSingleOrderDetail)
+userRoute.post("/cancelorder/:id",cancelOrder)
+//filter
+userRoute.get('/getcategorynames',getCategoryName)
+userRoute.get('/producttypes',productTypes)
+userRoute.get('/productsfilter',productFilter)
 
 module.exports = userRoute

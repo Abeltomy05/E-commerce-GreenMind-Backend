@@ -369,12 +369,106 @@ const cancelOrder = async(req,res)=>{
             error: error.message
             });
         }
-        }
+ }
+
+
+//admin side 
+const getOrderDataAdmin = async(req,res)=>{
+    try{
+        let query = { isDeleted: false };
+     
+        const orders = await Order.find(query)
+        .populate({
+            path:'user', 
+            select:'firstname lastname',
+            model:"User"
+        })
+        .populate({
+          path: 'products.product',
+          select: 'name images',
+          model: 'product'
+        })
+        .sort({ createdAt: -1 });
+
+
+        res.json(orders);
+
+    }catch(error){
+        console.error('Error fetching orders:', error);
+        res.status(500).json({ message: 'Failed to fetch orders' });
+    }
+}
+
+const changeOrderStatus = async(req,res)=>{
+    try{
+       const {id} = req.params;
+       const {status} = req.body;
+
+       const updatedOrder = await Order.findByIdAndUpdate(
+        id,
+        { 'paymentInfo.status': status },
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedOrder) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found or status not updated"
+        });
+      }  
+
+      return res.status(200).json({
+        success: true,
+        message: "Order status updated successfully",
+        data: updatedOrder
+      });
+    }catch(error){
+        console.error('Error updating order status:', error);
+        return res.status(500).json({
+          success: false,
+          message: "Internal server error",
+          error: error.message
+        });
+    }
+}
+
+const cancelOrderAdmin = async(req,res)=>{
+    try{
+        const {id} = req.params;
+        const {status} = req.body;
+        const updatedOrder = await Order.findByIdAndUpdate(id,
+            {'paymentInfo.status':status},
+            { new: true, runValidators: true }
+        )
+        console.log(updatedOrder)
+        if (!updatedOrder) {
+            return res.status(404).json({
+              success: false,
+              message: "Order not found or order not cancelled"
+            });
+          }  
+          return res.status(200).json({
+            success: true,
+            message: "Order canceled successfully",
+            data: updatedOrder
+          });
+    }catch(error){
+        console.error('Error updating order cancel:', error);
+        return res.status(500).json({
+          success: false,
+          message: "Internal server error",
+          error: error.message
+        });
+    }
+}
 
 
 module.exports = {
     placeOrder,
     getOrderData,
     getSingleOrderDetail,
-    cancelOrder
+    cancelOrder,
+    getOrderDataAdmin,
+    changeOrderStatus,
+    cancelOrderAdmin
 }

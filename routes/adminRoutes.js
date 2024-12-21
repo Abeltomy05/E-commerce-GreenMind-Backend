@@ -6,6 +6,7 @@ const {cloudinaryImgUpload} = require("../controller/cloudinaryController")
 const {userCount} = require("../controller/dashboardController")
 const {categoryData,addCategoryData,categoryStatus,categoryEdit,categoryDataForAddProduct} = require('../controller/categoryController')
 const authMiddleware = require("../middleware/authMiddleware")
+const {getOrderDataAdmin,changeOrderStatus,cancelOrderAdmin} = require('../controller/orderController')
 
 adminRoute.post('/login',adminLogin);
 adminRoute.get('/data',getUserData);
@@ -23,6 +24,9 @@ adminRoute.post('/addcategorydata',addCategoryData);
 adminRoute.put('/categorystatus/:id',categoryStatus);
 adminRoute.put('/editcategory/:id',categoryEdit);
 adminRoute.get('/categorydata-addproduct',categoryDataForAddProduct);
-
+//order
+adminRoute.get('/getorderdata',getOrderDataAdmin)
+adminRoute.patch('/changeorderstatus/:id',changeOrderStatus)
+adminRoute.patch('/cancelorder/:id',cancelOrderAdmin)
 
 module.exports = adminRoute;

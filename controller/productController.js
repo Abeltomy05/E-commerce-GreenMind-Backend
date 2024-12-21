@@ -23,7 +23,6 @@ const getProductData = async(req,res)=>{
 
 const addProduct = async(req,res)=>{
     try{
-      console.log('Received request body:', JSON.stringify(req.body, null, 2));
         const { 
             name, 
             category, 

@@ -44,8 +44,8 @@ paymentInfo: {
    },
    status: {
     type: String,
-    enum: ['pending', 'completed', 'failed'],
-    default: 'pending'
+    enum: ['PENDING', 'CONFIRMED', 'CANCELED', 'DELIVERED','ON THE ROAD'],
+    default: 'PENDING'
     }
   },
 couponApplied: {
