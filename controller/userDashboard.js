@@ -9,6 +9,7 @@ const Product = require('../model/productModel')
 
 const getProfiledata = async(req,res)=>{
      try{
+        console.log('Full req.params:', req.params);
         const userId = req.params.id;
         console.log(userId)
         console.log('Full req.params:', req.params);

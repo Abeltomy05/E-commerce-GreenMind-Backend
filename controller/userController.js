@@ -55,9 +55,8 @@ const refreshAccessToken = async (req, res) => {
   
       // Verify refresh token
       try{
-
         const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-        const user = await User.findById(decoded?.userId);
+        const user = await User.findById(decoded?._id);
 
         if (!user) {
           return res.status(401).json({ message: 'Invalid refresh token' });
@@ -68,19 +67,35 @@ const refreshAccessToken = async (req, res) => {
         const accessToken = generateAccessToken(user);
         const newRefreshToken = generateRefreshToken(user)
 
+        await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
+
         res.status(200).cookie('accessToken', accessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
+          sameSite: 'lax',
           maxAge: 15 * 60 * 1000 // 15 minutes
         });
 
         res.status(200).cookie('refreshToken', newRefreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          maxAge: 7 * 24 * 60 * 60 * 1000 // 15 minutes
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
+
+        return res.json({ 
+          status: "VERIFIED",
+          message: 'Token refreshed successfully',
+          user: {
+            id: user._id,
+            name: user.username,
+            email: user.email,
+            image: user.profileImage,
+            phone: user.phone
+          },
+          role: "user"
+      });
+
       }catch(error){
 
       }
@@ -214,9 +229,16 @@ const verifyOTP = async(req,res)=>{
                   
                    res.json({
                     status: "VERIFIED",
-                    message: "User email verified successfully",
-                    userId: user._id,
-                    email: user.email
+                    user: {
+                      id: user._id,
+                      name: user.username,
+                      email: user.email,
+                      image: user.profileImage,
+                      phone: user.phone
+                    },
+                    role: "user",
+                    accessToken: accessToken,
+                    refreshToken: refreshToken
                    })
                 }
             }
@@ -254,61 +276,77 @@ const resendOTP = async(req,res)=>{
     }
 }
 
-const login = async (req,res)=>{
-  try{
-      const {email,password}= req.body
-      const user = await User.findOne({email})
-     if(!user.isAdmin){
-      if(user.verified || user.isGoogleUser){
-          if(await bcrypt.compare(password, user.password)){
-             
-            const accessToken = generateAccessToken(user);
-            const refreshToken = generateRefreshToken(user);
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({ message: "User Not Found" });
+    }
 
-            await User.updateOne({_id: user._id},{
-              refreshToken: refreshToken 
-            });
+    if (user.isAdmin) {
+      return res.status(403).json({ message: "Invalid login attempt" });
+    }
+    if(user.isBlocked){
+      return res.status(403).json({ message: "User is blocked" });
+    }
 
+    if (!user.verified && !user.isGoogleUser) {
+      return res.status(403).json({ message: "Email not verified" });
+    }
 
-              res.cookie('accessToken', accessToken, {
-                httpOnly: true,  
-                secure: false, 
-                sameSite: 'strict', 
-                maxAge: 15 * 60 * 1000 //15 Min
-              });
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
-              res.cookie('refreshToken', refreshToken, {
-                httpOnly: true,
-                secure: false,
-                sameSite: 'strict',
-                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-              });
-              
-               res.json({
-                status: "VERIFIED",
-                message: "User login success",
-                user:{
-                  id:user._id,
-                  name:user.username,
-                  email:user.email,
-                  image:user.profileImage,
-                  phone:user.phone
-                },
-                role:"user"
-               })
-              }else{
-                  res.status(401).json({message: "Invalid email or password"})
-              }
-          }else{
-              return res.status(500).json({ message: "Invalid email or password" });
-          }
-      }else{
-          return res.status(500).json({ message: "User Not Found" });
-      }
-      }catch(err){
-          console.log(err);
-      }
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    await User.findByIdAndUpdate(user._id, { refreshToken });
+
+    // console.log('Setting Cookies:', {
+    //   accessToken: accessToken.substring(0, 20) + '...',
+    //   refreshToken: refreshToken.substring(0, 20) + '...'
+    // });
+
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 1000,
+      path: '/' 
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+       path: '/'
+    });
+
+    return res.json({
+      status: "VERIFIED",
+      message: "User login success",
+      user: {
+        id: user._id,
+        name: user.username,
+        email: user.email,
+        image: user.profileImage,
+        phone: user.phone
+      },
+      role: "user",
+      accessToken: accessToken,
+      refreshToken: refreshToken
+    });
+
+  } catch (err) {
+    console.error("Login error:", err);
+    return res.status(500).json({ message: "Server error" });
   }
+};
 
   const getProductData = async (req, res) => {
     try {

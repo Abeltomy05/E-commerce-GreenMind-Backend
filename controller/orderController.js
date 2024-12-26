@@ -204,7 +204,7 @@ const getOrderData = async(req,res)=>{
         .sort({ createdAt: -1 });
 
         if (!orders || orders.length === 0) {
-            return res.status(404).json({
+            return res.status(200).json({
                 success: false,
                 message: "No orders found for this user"
             });
@@ -301,7 +301,8 @@ const getSingleOrderDetail = async(req,res)=>{
         } : null,
         totalPrice: order.totalPrice || 0,
         status:order.paymentInfo.status,
-        createdAt: order.createdAt
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
    };
 
        res.status(200).json({
@@ -381,17 +382,47 @@ const getOrderDataAdmin = async(req,res)=>{
         .populate({
             path:'user', 
             select:'firstname lastname',
-            model:"User"
+            model:"User",
+            match: { isDeleted: false }
         })
         .populate({
           path: 'products.product',
           select: 'name images',
-          model: 'product'
+          model: 'product',
+          match: { isDeleted: false }
         })
         .sort({ createdAt: -1 });
 
+        const processedOrders = orders.map(order => {
+            const orderObj = order.toObject();
+            
+            // If user was not found during population (e.g., deleted), 
+            // provide a default user object
+            if (!orderObj.user) {
+                orderObj.user = {
+                    firstname: 'Deleted',
+                    lastname: 'User'
+                };
+            }
+                 // Handle products where some might have been deleted
+                 orderObj.products = orderObj.products.map(product => {
+                    if (!product.product) {
+                        return {
+                            ...product,
+                            product: {
+                                name: 'Product Unavailable',
+                                images: []
+                            }
+                        };
+                    }
+                    return product;
+                });
+    
+                return orderObj;
+            });
 
-        res.json(orders);
+
+        res.json(processedOrders);
 
     }catch(error){
         console.error('Error fetching orders:', error);
