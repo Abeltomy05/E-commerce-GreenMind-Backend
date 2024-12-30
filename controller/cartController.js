@@ -52,7 +52,13 @@ const getCartData = async (req, res) => {
         });
       }
   
-
+      const currentCartCount = await Cart.countDocuments({ user });
+      if (currentCartCount >= 5) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cart limit reached. Maximum 5 different products allowed in cart.'
+        });
+      }
 
       const existingProduct = await Product.findById(product);
       if (!existingProduct) {
@@ -248,8 +254,15 @@ const getCartData = async (req, res) => {
   const removeCartItem = async (req, res) => {     
     try {       
       const { id } = req.params;       
-      const { userId } = req.body;  // Destructure userId from request body
-            
+      const { userId } = req.body;  
+          
+      if (!id || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required parameters'
+        });
+      }
+
       const cartItem = await Cart.findOneAndDelete({          
         _id: id,          
         user: userId        

@@ -11,6 +11,7 @@ const app = express()
 const userRoute = require("./routes/userRoutes")
 const adminRoute = require("./routes/adminRoutes");
 const authRoute = require("./routes/authRoute")
+const paymentRoute = require("./routes/paymentRoutes")
 const User = require("./model/userModel");
 
 app.use(cookieParser());
@@ -90,6 +91,7 @@ const corsOptions = {
    app.use("/user",userRoute)
    app.use("/admin",adminRoute)
    app.use("/auth",authRoute)
+   app.use("/payment",paymentRoute)
 
 
    app.listen("3000", ()=>{

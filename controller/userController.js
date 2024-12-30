@@ -59,7 +59,7 @@ const refreshAccessToken = async (req, res) => {
         const user = await User.findById(decoded?._id);
 
         if (!user) {
-          return res.status(401).json({ message: 'Invalid refresh token' });
+          return res.status(401).json({ message: 'User not found'  });
         }
         if(refreshToken !== user?.refreshToken){
           return res.status(401).json({ message: 'Invalid refresh token' });
@@ -97,10 +97,27 @@ const refreshAccessToken = async (req, res) => {
       });
 
       }catch(error){
+        console.error('Refresh Token Error:', error);
 
-      }
+        if (error.name === 'TokenExpiredError') {
+          return res.status(401).json({ 
+            status: "ERROR",
+            message: 'Refresh token has expired' 
+          });
+        }
     
-      res.json({ message: 'Token refreshed' });
+        if (error.name === 'JsonWebTokenError') {
+          return res.status(401).json({ 
+            status: "ERROR",
+            message: 'Invalid refresh token' 
+          });
+        }
+    
+        return res.status(500).json({ 
+          status: "ERROR",
+          message: 'Internal server error during token refresh' 
+        });
+      }
 
   };
 

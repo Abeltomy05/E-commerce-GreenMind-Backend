@@ -4,10 +4,17 @@ const User = require('../model/userModel')
 const verifyJWT = async(req, res, next) => {
   try{
 
-  const token = req.cookies.accessToken || req.headers.authorization?.split(' ')[1];
+  let token = req.cookies.accessToken;
 
   if (!token) {
-    return res.status(401).json({ message: 'No token provided' });
+    token = req.headers.authorization?.split(' ')[1];
+  }
+
+  if (!token) {
+    return res.status(401).json({ 
+      status: 'error',
+      message: 'Access denied. No token provided.' 
+    });
   }
 
   const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
@@ -16,6 +23,14 @@ const verifyJWT = async(req, res, next) => {
   if(!user){
     return res.status(401).json({ message: 'Unauthorized' });
   }
+
+  // if (user.isBlocked) {
+  //   return res.status(403).json({ 
+  //     status: 'error',
+  //     message: 'Your account has been suspended.' 
+  //   });
+  // }
+
   // console.log("successfully verified token  ")
   req.user = user;
   next();

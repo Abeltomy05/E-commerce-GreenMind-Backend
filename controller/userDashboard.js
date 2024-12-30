@@ -81,6 +81,9 @@ const updateUserProfile = async (req, res) => {
         // Check if the new address already exists
         const addressExists = await Address.findOne({
             user: userId,
+            fullName: address.fullName,
+            phone: address.phone,
+            Address: address.Address,
             city: address.city,
             country: address.country,
             state: address.state,
@@ -95,6 +98,9 @@ const updateUserProfile = async (req, res) => {
             savedAddress = await Address.findByIdAndUpdate(
                 addressExists._id,
                 {
+                    fullName: address.fullName,
+                    phone: address.phone,
+                    Address: address.Address,
                     city: address.city,
                     country: address.country,
                     state: address.state,
@@ -108,6 +114,9 @@ const updateUserProfile = async (req, res) => {
             if (existingAddresses.length === 0) {
                 savedAddress = new Address({
                     user: userId,
+                    fullName: address.fullName,
+                    phone: address.phone,
+                    Address: address.Address,
                     city: address.city,
                     country: address.country,
                     state: address.state,
@@ -120,6 +129,9 @@ const updateUserProfile = async (req, res) => {
                 // If addresses exist, add as a new address
                 savedAddress = new Address({
                     user: userId,
+                    fullName: address.fullName,
+                    phone: address.phone,
+                    Address: address.Address,
                     city: address.city,
                     country: address.country,
                     state: address.state,

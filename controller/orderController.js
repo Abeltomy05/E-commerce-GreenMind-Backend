@@ -7,8 +7,129 @@ const Cart = require('../model/cartModel')
 const Address = require('../model/addressModel')
 const Order = require('../model/orderSchema')
 
+const orderAmount = async(req, res) => {
+    try {
+        const { products, couponCode } = req.body;
+        let subtotal = 0;
+        let totalAmount = 0;
+        const productDetails = [];
+
+        // Calculate total amount based on product variants
+        for (const item of products) {
+            // Find the product
+            const product = await Product.findById(item.product);
+            
+            if (!product) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: `Product not found` 
+                });
+            }
+
+            if (product.isDeleted) {
+                return res.status(400).json({
+                    success: false,
+                    message: `${product.name} is no longer available`
+                });
+            }
+
+            // Find the variant with matching size
+            const variant = product.variants.find(v => v.size === item.size);
+            
+            if (!variant) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: `Selected size ${item.size} not available for ${product.name}` 
+                });
+            }
+
+
+            // Calculate price for this item
+            const itemTotal = variant.price * item.quantity;
+            subtotal += itemTotal;
+
+            // Store product details for response
+            productDetails.push({
+                productId: product._id,
+                name: product.name,
+                size: item.size,
+                quantity: item.quantity,
+                price: variant.price,
+                total: itemTotal
+            });
+        }
+
+        totalAmount = subtotal;
+        let discountAmount = 0;
+        let couponDetails = null;
+
+        // Apply coupon if provided
+        // if (couponCode) {
+        //     const coupon = await Coupon.findOne({ 
+        //         code: couponCode,
+        //         active: true,
+        //         expiryDate: { $gt: new Date() }
+        //     });
+
+        //     if (coupon) {
+        //         if (subtotal >= coupon.minimumPurchase) {
+        //             if (coupon.type === 'percentage') {
+        //                 discountAmount = (subtotal * coupon.value) / 100;
+        //                 if (coupon.maximumDiscount) {
+        //                     discountAmount = Math.min(discountAmount, coupon.maximumDiscount);
+        //                 }
+        //             } else {
+        //                 discountAmount = coupon.value;
+        //             }
+                    
+        //             totalAmount = subtotal - discountAmount;
+        //             couponDetails = {
+        //                 code: coupon.code,
+        //                 discountAmount,
+        //                 type: coupon.type,
+        //                 value: coupon.value
+        //             };
+        //         } else {
+        //             return res.status(400).json({
+        //                 success: false,
+        //                 message: `Minimum purchase amount of ₹${coupon.minimumPurchase} required for coupon`
+        //             });
+        //         }
+        //     } else {
+        //         return res.status(400).json({
+        //             success: false,
+        //             message: 'Invalid or expired coupon code'
+        //         });
+        //     }
+        // }
+
+        // Round to 2 decimal places
+        totalAmount = Math.round(totalAmount * 100) / 100;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                subtotal,
+                discountAmount,
+                totalAmount,
+                couponDetails,
+                productDetails
+            }
+        });
+
+    } catch (error) {
+        console.error('Calculate order amount error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error calculating order amount',
+            error: error.message
+        });
+    }
+};
+
 const placeOrder = async(req,res)=>{
     try{
+        console.log(req.body)
         const { 
             userId, 
             products, 
@@ -183,7 +304,126 @@ const placeOrder = async(req,res)=>{
         });
     }
 }
+const razorpayPlaceOrder = async(req,res)=>{
+    try{
+        const {
+            userId,
+            products,
+            addressId,
+            totalPrice,
+            paymentMethod,
+            couponCode = null,
+            paymentDetails = null
+        } = req.body;
 
+        if (!userId || !products || !products.length || !addressId || !totalPrice || !paymentMethod) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
+
+        const address = await Address.findOne({
+            _id: addressId,
+            user: userId
+        });
+
+        if (!address) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shipping address not found'
+            });
+        }
+        const orderProducts = [];
+        const cartItemsToDelete = [];
+
+        for (const item of products) {
+            const product = await Product.findById(item.product);
+            
+            if (!product || product.isDeleted) {
+                return res.status(404).json({
+                    success: false,
+                    message: `Product not found: ${item.product}`
+                });
+            }
+            const variant = product.variants.find(v => v.size === item.size);
+            
+            if (!variant) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Size ${item.size} not found for product ${product.name}`
+                });
+            }
+
+            // if (variant.stock < item.quantity) {
+            //     return res.status(400).json({
+            //         success: false,
+            //         message: `Insufficient stock for product ${product.name}`
+            //     });
+            // }
+            await Product.updateOne(
+                { 
+                    _id: product._id,
+                    "variants.size": item.size
+                },
+                { 
+                    $inc: { "variants.$.stock": -item.quantity }
+                }
+            );
+            orderProducts.push({
+                product: item.product,
+                quantity: item.quantity,
+                size: item.size
+            });
+            if (item.cartItemId) {
+                cartItemsToDelete.push(item.cartItemId);
+            }
+        } 
+        console.log(cartItemsToDelete)
+        const expectedDeliveryDate = new Date();
+        expectedDeliveryDate.setDate(expectedDeliveryDate.getDate() + 7);
+
+        let paymentStatus = 'PENDING';
+
+
+        const order = new Order({
+            user: userId,
+            products: orderProducts,
+            address: addressId,
+            totalPrice,
+            paymentInfo: {
+                method: paymentMethod,
+                transactionId: paymentDetails?.paymentId || null,
+                status: paymentStatus
+            },
+            couponApplied: couponCode || null,
+            expectedDeliveryDate
+        });
+
+        await order.save();
+
+        if (cartItemsToDelete.length > 0) {
+            await Cart.deleteMany({
+                _id: { $in: cartItemsToDelete },
+                user: userId
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Order placed successfully',
+            orderId: order._id,
+            orderDetails: order
+        });
+
+    }catch(error){
+        console.error('Order placement error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to place order',
+            error: error.message
+        });
+    }
+}
 const getOrderData = async(req,res)=>{
     try{
         const userId = req.params.id;
@@ -501,5 +741,7 @@ module.exports = {
     cancelOrder,
     getOrderDataAdmin,
     changeOrderStatus,
-    cancelOrderAdmin
+    cancelOrderAdmin,
+    orderAmount,
+    razorpayPlaceOrder
 }
