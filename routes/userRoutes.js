@@ -7,6 +7,7 @@ const {placeOrder,getOrderData,getSingleOrderDetail,cancelOrder,orderAmount,razo
 const {verifyJWT} = require("../middleware/authMiddleware");
 const {checkUserBlock} = require('../middleware/checkUserBlock')
 const {getCategoryName,productTypes,productFilter} = require('../controller/filterController')
+const { addToWishlist,removeFromWishlist,checkWishlist,getWishlist} = require('../controller/wishlistController')
 
 userRoute.post("/signup",signup);
 userRoute.post("/verifyOTP",verifyOTP)
@@ -42,5 +43,9 @@ userRoute.post('/razorpayplaceorder',verifyJWT,razorpayPlaceOrder)
 userRoute.get('/getcategorynames',verifyJWT,getCategoryName)
 userRoute.get('/producttypes',verifyJWT,productTypes)
 userRoute.get('/productsfilter',verifyJWT,productFilter)
-
+//wishlist
+userRoute.post('/add-wishlist', verifyJWT, addToWishlist);
+userRoute.delete('/remove-wishlist/:productId', verifyJWT, removeFromWishlist);
+userRoute.get('/check-wishlist/:productId', verifyJWT, checkWishlist);
+userRoute.get('/wishlist', verifyJWT, getWishlist);
 module.exports = userRoute

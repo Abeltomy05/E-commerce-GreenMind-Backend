@@ -56,7 +56,8 @@ const getCartData = async (req, res) => {
       if (currentCartCount >= 5) {
         return res.status(400).json({
           success: false,
-          message: 'Cart limit reached. Maximum 5 different products allowed in cart.'
+          message: 'Cart limit reached. Maximum 5 different products allowed in cart.',
+          cartLimitReached: true
         });
       }
 
