@@ -10,14 +10,20 @@ user: {
 products: [{
     product: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: 'product',
         required: true
     },
     quantity: {
         type: Number,
         required: true,
         min: 1
-    }
+    },
+    returnStatus: {
+      isReturned: { type: Boolean, default: false }, 
+      returnReason: { type: String },            
+      returnDate: { type: Date },  
+      adminApproval: { type: Boolean, default: false},          
+    },
       }],
 address:{
      type:mongoose.Schema.Types.ObjectId,

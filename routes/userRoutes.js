@@ -3,7 +3,7 @@ const userRoute = express.Router();
 const {signup,verifyOTP,resendOTP,refreshAccessToken,login,getProductData,getSingleProductData,getUserData} = require("../controller/userController")
 const {getProfiledata,updateUserProfile,changePassword,profileImgUpdate,getAdressOfaUser,setNewAddressForUser,updateAddress,deleteAddress} = require('../controller/userDashboard')
 const {getCartData,addToCart,getCartDataForCartPage,updateCartItemQuantity,removeCartItem} = require("../controller/cartController")
-const {placeOrder,getOrderData,getSingleOrderDetail,cancelOrder,orderAmount,razorpayPlaceOrder} = require("../controller/orderController")
+const {placeOrder,getOrderData,getSingleOrderDetail,cancelOrder,orderAmount,razorpayPlaceOrder,getOrderForReturn,handleReturnRequest} = require("../controller/orderController")
 const {verifyJWT} = require("../middleware/authMiddleware");
 const {checkUserBlock} = require('../middleware/checkUserBlock')
 const {getCategoryName,productTypes,productFilter} = require('../controller/filterController')
@@ -48,4 +48,7 @@ userRoute.post('/add-wishlist', verifyJWT, addToWishlist);
 userRoute.delete('/remove-wishlist/:productId', verifyJWT, removeFromWishlist);
 userRoute.get('/check-wishlist/:productId', verifyJWT, checkWishlist);
 userRoute.get('/wishlist', verifyJWT, getWishlist);
+//return
+userRoute.get('/getorderforreturn/:orderId',verifyJWT,getOrderForReturn)
+userRoute.post('/handlereturn/:orderId/:productId',verifyJWT,handleReturnRequest)
 module.exports = userRoute

@@ -733,6 +733,100 @@ const cancelOrderAdmin = async(req,res)=>{
     }
 }
 
+//return 
+
+const getOrderForReturn = async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const userId = req.user._id;
+  
+      if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
+        return res.status(400).json({ message: 'Invalid order ID' });
+      }
+  
+      const order = await Order.findOne({
+        _id: orderId,
+        user: userId,
+        isDeleted: false
+      }).populate({
+        path: 'products.product',
+        select: 'name images category variants',
+        populate: {
+          path: 'category',
+          select: 'name'
+        }
+      });
+  
+      if (!order) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+  
+      if (!order.paymentInfo || !order.paymentInfo.status) {
+        return res.status(400).json({ message: 'Invalid order status' });
+      }
+  
+      const orderDate = new Date(order.createdAt);
+      const today = new Date();
+      const daysSinceOrder = Math.floor((today - orderDate) / (1000 * 60 * 60 * 24));
+  
+      if (daysSinceOrder > 30) {
+        return res.status(400).json({ message: 'Order is no longer eligible for return' });
+      }
+  
+      if (order.paymentInfo.status !== 'DELIVERED') {
+        return res.status(400).json({ message: 'Only delivered orders can be returned' });
+      }
+  
+      res.json(order);
+    } catch (error) {
+      console.error('Error in getOrderForReturn:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+
+const handleReturnRequest = async (req, res) => {
+    try {
+      const { orderId, productId } = req.params;
+      const { reason } = req.body;
+      const userId = req.user._id;
+  
+      if (!reason) {
+        return res.status(400).json({ message: 'Return reason is required' });
+      }
+  
+      const order = await Order.findOne({
+        _id: orderId,
+        user: userId,
+        isDeleted: false
+      });
+  
+      if (!order) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+  
+      const productIndex = order.products.findIndex(
+        p => p.product.toString() === productId
+      );
+  
+      if (productIndex === -1) {
+        return res.status(404).json({ message: 'Product not found in order' });
+      }
+  
+      order.products[productIndex].returnStatus = {
+        isReturned: true,
+        returnReason: reason,
+        returnDate: new Date(),
+        adminApproval: false
+      };
+  
+      await order.save();
+      res.json({ message: 'Return request submitted successfully' });
+    } catch (error) {
+      console.error('Error in handleReturnRequest:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+
 
 module.exports = {
     placeOrder,
@@ -743,5 +837,7 @@ module.exports = {
     changeOrderStatus,
     cancelOrderAdmin,
     orderAmount,
-    razorpayPlaceOrder
+    razorpayPlaceOrder,
+    getOrderForReturn,
+    handleReturnRequest
 }
