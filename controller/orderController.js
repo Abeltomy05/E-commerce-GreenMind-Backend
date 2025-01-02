@@ -623,7 +623,7 @@ const getOrderDataAdmin = async(req,res)=>{
             path:'user', 
             select:'firstname lastname',
             model:"User",
-            match: { isDeleted: false }
+            match: { isBlocked: false }
         })
         .populate({
           path: 'products.product',
@@ -632,7 +632,6 @@ const getOrderDataAdmin = async(req,res)=>{
           match: { isDeleted: false }
         })
         .sort({ createdAt: -1 });
-
         const processedOrders = orders.map(order => {
             const orderObj = order.toObject();
             
@@ -827,6 +826,77 @@ const handleReturnRequest = async (req, res) => {
     }
   };
 
+//return requst admin side
+
+const getReturnRequests = async (req, res) => {
+    try{
+        const orders = await Order.aggregate([
+            { $unwind: '$products' },
+            { $match: { 'products.returnStatus.isReturned': true } },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'user',
+                foreignField: '_id',
+                as: 'userData'
+              }
+            },
+            {
+              $lookup: {
+                from: 'products',
+                localField: 'products.product',
+                foreignField: '_id',
+                as: 'productData'
+              }
+            },
+            {
+              $project: {
+                orderId: '$_id',
+                productId: '$products.product',
+                returnReason: '$products.returnStatus.returnReason',
+                returnDate: '$products.returnStatus.returnDate',
+                adminApproval: '$products.returnStatus.adminApproval',
+                user: { $arrayElemAt: ['$userData', 0] },
+                product: { $arrayElemAt: ['$productData', 0] }
+              }
+            }
+          ]);
+      
+          res.json(orders);
+    }catch(error){
+        console.error('Error fetching return requests:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+}
+
+const approveReturnRequest = async (req, res) => {
+    try{
+        const { orderId, productId } = req.body;
+        console.log('1:'+orderId, '2:'+productId);
+        const order = await Order.findOneAndUpdate(
+          { 
+            _id: orderId,
+            'products.product': productId
+          },
+          {
+            $set: {
+              'products.$.returnStatus.adminApproval': true
+            }
+          },
+          { new: true }
+        );
+    
+        if (!order) {
+          return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+    
+        res.json({ success: true, message: 'Return request approved successfully' });
+    }catch(error){
+        console.error('Error approving return:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+}
+
 
 module.exports = {
     placeOrder,
@@ -839,5 +909,7 @@ module.exports = {
     orderAmount,
     razorpayPlaceOrder,
     getOrderForReturn,
-    handleReturnRequest
+    handleReturnRequest,
+    getReturnRequests,
+    approveReturnRequest
 }
