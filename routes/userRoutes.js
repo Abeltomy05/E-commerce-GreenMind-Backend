@@ -8,6 +8,9 @@ const {verifyJWT} = require("../middleware/authMiddleware");
 const {checkUserBlock} = require('../middleware/checkUserBlock')
 const {getCategoryName,productTypes,productFilter} = require('../controller/filterController')
 const { addToWishlist,removeFromWishlist,checkWishlist,getWishlist} = require('../controller/wishlistController')
+const {displayCoupons,applyCoupen} = require('../controller/coupenController')
+const {walletDetails} = require('../controller/walletController')
+
 
 userRoute.post("/signup",signup);
 userRoute.post("/verifyOTP",verifyOTP)
@@ -44,11 +47,16 @@ userRoute.get('/getcategorynames',verifyJWT,getCategoryName)
 userRoute.get('/producttypes',verifyJWT,productTypes)
 userRoute.get('/productsfilter',verifyJWT,productFilter)
 //wishlist
-userRoute.post('/add-wishlist', verifyJWT, addToWishlist);
+userRoute.post('/add-wishlist', verifyJWT,checkUserBlock, addToWishlist);
 userRoute.delete('/remove-wishlist/:productId', verifyJWT, removeFromWishlist);
-userRoute.get('/check-wishlist/:productId', verifyJWT, checkWishlist);
-userRoute.get('/wishlist', verifyJWT, getWishlist);
+userRoute.get('/check-wishlist/:productId',verifyJWT,checkUserBlock, checkWishlist);
+userRoute.get('/wishlist', verifyJWT,checkUserBlock, getWishlist);
 //return
 userRoute.get('/getorderforreturn/:orderId',verifyJWT,getOrderForReturn)
 userRoute.post('/handlereturn/:orderId/:productId',verifyJWT,handleReturnRequest)
+//coupens
+userRoute.get('/displaycoupons',displayCoupons);
+userRoute.get('/applycoupen',applyCoupen);
+//wallet
+userRoute.get('/walletdetails',verifyJWT,walletDetails)
 module.exports = userRoute

@@ -3,6 +3,7 @@ const express =require("express");
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Product = require('../model/productModel');
+const Coupon = require('../model/coupenModel');
 
 
 const razorpayorder = async(req,res)=>{
@@ -13,6 +14,7 @@ const razorpayorder = async(req,res)=>{
         })
         const { products, couponCode } = req.body;
         let totalAmount = 0;
+
         for (const item of products) {
             // Fetch product from database to get current price
             const product = await Product.findById(item.productId);
@@ -33,12 +35,23 @@ const razorpayorder = async(req,res)=>{
             totalAmount += variant.price * item.quantity;
 
         }
-        // if (couponCode) {
-        //     const coupon = await Coupon.findOne({ code: couponCode, active: true });
-        //     if (coupon) {
-        //         totalAmount = applyCouponDiscount(totalAmount, coupon);
-        //     }
-        // }
+
+        let discountAmount = 0;
+        if (couponCode) {
+            const coupon = await Coupon.findOne({ 
+                code: couponCode, 
+                startDate: { $lte: new Date() },
+                expiryDate: { $gte: new Date() }
+            });
+
+            if (coupon && totalAmount >= coupon.minimumPurchaseAmount) {
+                discountAmount = Math.min(
+                    (totalAmount * coupon.discount) / 100,
+                    coupon.maximumDiscountAmount
+                );
+                totalAmount -= discountAmount;
+            }
+        }
 
         const amountInPaise = Math.round(totalAmount * 100);
 
@@ -52,7 +65,8 @@ const razorpayorder = async(req,res)=>{
         res.status(200).json({
             success: true,
             order,
-            amount: amountInPaise
+            amount: amountInPaise,
+            discountAmount
         });
 
     }catch(error){

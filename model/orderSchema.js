@@ -56,7 +56,7 @@ paymentInfo: {
   },
 couponApplied: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Coupon',
+    ref: 'coupen',
     default: null
   },
 shippingFee: {

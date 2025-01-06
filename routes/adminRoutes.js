@@ -7,6 +7,8 @@ const {userCount} = require("../controller/dashboardController")
 const {categoryData,addCategoryData,categoryStatus,categoryEdit,categoryDataForAddProduct} = require('../controller/categoryController')
 const authMiddleware = require("../middleware/authMiddleware")
 const {getOrderDataAdmin,changeOrderStatus,cancelOrderAdmin,getReturnRequests,approveReturnRequest} = require('../controller/orderController')
+const {coupenData,createcoupon,deletecoupon} = require('../controller/coupenController')
+const {getOrders} = require('../controller/adminDashboard')
 
 adminRoute.post('/login',adminLogin);
 adminRoute.get('/data',getUserData);
@@ -31,4 +33,10 @@ adminRoute.patch('/cancelorder/:id',cancelOrderAdmin)
 //return
 adminRoute.get('/getreturnrequests',getReturnRequests);
 adminRoute.post('/approvereturn',approveReturnRequest);
+//coupen
+adminRoute.get('/getcoupons',coupenData);
+adminRoute.post('/createcoupon',createcoupon);
+adminRoute.delete('/deletecoupon/:id',deletecoupon);
+//dashboard
+adminRoute.get('/getorders',getOrders)
 module.exports = adminRoute;

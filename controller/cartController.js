@@ -51,6 +51,20 @@ const getCartData = async (req, res) => {
           message: 'User and Product are required' 
         });
       }
+
+      const existingCartItem = await Cart.findOne({ 
+        user, 
+        product,
+        'variant.size': variant.size 
+      });
+  
+      if (existingCartItem) {
+        return res.status(200).json({ 
+          success: true, 
+          itemExists:true,
+          message: 'Product already in cart'
+        });
+      }
   
       const currentCartCount = await Cart.countDocuments({ user });
       if (currentCartCount >= 5) {
@@ -89,19 +103,7 @@ const getCartData = async (req, res) => {
         });
       }
 
-      const existingCartItem = await Cart.findOne({ 
-        user, 
-        product,
-        'variant.size': variant.size 
-      });
-  
-      if (existingCartItem) {
-        return res.status(200).json({ 
-          success: true, 
-          itemExists:true,
-          message: 'Product already in cart'
-        });
-      }
+   
   
       // Create new cart item
       const newCartItem = new Cart({

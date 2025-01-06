@@ -2,8 +2,7 @@ const User = require('../model/userModel')
 
 const checkUserBlock = async (req, res, next) => {
     try {
-        const userId = req.user?._id; 
-        console.log("userId from check user is block",userId)    
+        const userId = req.user?._id;    
         
         if (!userId) {
             return res.status(401).json({ message: 'Unauthorized access' });

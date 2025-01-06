@@ -32,7 +32,7 @@ const generateAccessToken = (user) => {
             username:user.username,
         }, 
         process.env.ACCESS_TOKEN_SECRET, 
-        { expiresIn: '15m' }
+        { expiresIn: '7d' }
     );
 };
 
@@ -332,7 +332,7 @@ const login = async (req, res) => {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
-      maxAge: 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/' 
     });
 

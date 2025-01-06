@@ -54,9 +54,11 @@ const updateUserProfile = async (req, res) => {
         const userId = req.params.id;
         const { formData, address } = req.body;
 
-    
         if (!userId) {
-            return res.status(400).json({ message: 'User ID is required' });
+            return res.status(400).json({ 
+                success: false, 
+                message: 'User ID is required' 
+            });
         }
 
 
@@ -72,31 +74,23 @@ const updateUserProfile = async (req, res) => {
         );
 
         if (!updatedUser) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ 
+                success: false,
+                message: 'User not found' 
+            });
         }
 
-        // Check if user has any addresses
-        const existingAddresses = await Address.find({ user: userId });
 
-        // Check if the new address already exists
-        const addressExists = await Address.findOne({
+        const defaultAddress = await Address.findOne({ 
             user: userId,
-            fullName: address.fullName,
-            phone: address.phone,
-            Address: address.Address,
-            city: address.city,
-            country: address.country,
-            state: address.state,
-            district: address.district,
-            pincode: address.pincode
+            isDefault: true 
         });
 
         let savedAddress;
-
-        if (addressExists) {
-            // If address exists, update it
+        if (defaultAddress) {
+            // Update the existing default address
             savedAddress = await Address.findByIdAndUpdate(
-                addressExists._id,
+                defaultAddress._id,
                 {
                     fullName: address.fullName,
                     phone: address.phone,
@@ -105,44 +99,27 @@ const updateUserProfile = async (req, res) => {
                     country: address.country,
                     state: address.state,
                     district: address.district,
-                    pincode: address.pincode
+                    pincode: address.pincode,
+                    isDefault: true // Ensure it stays default
                 },
-                { new: true }
+                { new: true, runValidators: true }
             );
         } else {
-            // If no addresses exist, create new address and set as default
-            if (existingAddresses.length === 0) {
-                savedAddress = new Address({
-                    user: userId,
-                    fullName: address.fullName,
-                    phone: address.phone,
-                    Address: address.Address,
-                    city: address.city,
-                    country: address.country,
-                    state: address.state,
-                    district: address.district,
-                    pincode: address.pincode,
-                    isDefault: true
-                });
-                await savedAddress.save();
-            } else {
-                // If addresses exist, add as a new address
-                savedAddress = new Address({
-                    user: userId,
-                    fullName: address.fullName,
-                    phone: address.phone,
-                    Address: address.Address,
-                    city: address.city,
-                    country: address.country,
-                    state: address.state,
-                    district: address.district,
-                    pincode: address.pincode,
-                    isDefault: false
-                });
-                await savedAddress.save();
-            }
+            // Create new address as default since no default exists
+            savedAddress = new Address({
+                user: userId,
+                fullName: address.fullName,
+                phone: address.phone,
+                Address: address.Address,
+                city: address.city,
+                country: address.country,
+                state: address.state,
+                district: address.district,
+                pincode: address.pincode,
+                isDefault: true // Set as default
+            });
+            await savedAddress.save();
         }
-
         res.status(200).json({
             message: 'Profile updated successfully',
             user: updatedUser,
