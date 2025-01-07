@@ -9,6 +9,7 @@ const authMiddleware = require("../middleware/authMiddleware")
 const {getOrderDataAdmin,changeOrderStatus,cancelOrderAdmin,getReturnRequests,approveReturnRequest} = require('../controller/orderController')
 const {coupenData,createcoupon,deletecoupon} = require('../controller/coupenController')
 const {getOrders} = require('../controller/adminDashboard')
+const {getOffers,createOffer,getProducts,getCategories,deleteOffer} = require('../controller/offerController')
 
 adminRoute.post('/login',adminLogin);
 adminRoute.get('/data',getUserData);
@@ -39,4 +40,10 @@ adminRoute.post('/createcoupon',createcoupon);
 adminRoute.delete('/deletecoupon/:id',deletecoupon);
 //dashboard
 adminRoute.get('/getorders',getOrders)
+//offers
+adminRoute.get('/getoffers',getOffers)
+adminRoute.post('/createoffer',createOffer)
+adminRoute.delete('/deleteoffer/:id',deleteOffer)
+adminRoute.get('/products',getProducts )
+adminRoute.get('/categories',getCategories  )
 module.exports = adminRoute;

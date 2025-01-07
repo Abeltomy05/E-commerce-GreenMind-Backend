@@ -32,7 +32,11 @@ const productSchema = new mongoose.Schema({
     size: { type: String, required: true },
     price: { type: Number, required: true, min: 0 },
     stock: { type: Number, required: true, min: 0 },
-  }]
+  }],
+  currentOffer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Offer'
+  }
   
 }, {
   timestamps: true  

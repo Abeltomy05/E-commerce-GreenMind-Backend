@@ -12,6 +12,10 @@ const categorySchema = new mongoose.Schema({
   description: {
     type: String,
   },
+  currentOffer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Offer'
+  }
 }, {
   timestamps: true  
 });
