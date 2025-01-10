@@ -12,45 +12,13 @@ const razorpayorder = async(req,res)=>{
             key_id:process.env.RZP_KEY_ID,
             key_secret:process.env.RZP_KEY_SECRET
         })
-        const { products, couponCode } = req.body;
-        let totalAmount = 0;
+        const { totalAmount  } = req.body;
 
-        for (const item of products) {
-            // Fetch product from database to get current price
-            const product = await Product.findById(item.productId);
-            if (!product) {
-                return res.status(404).json({ 
-                    success: false,
-                    message: `Product ${item.productId} not found` 
-                });
-            }
-            const variant = product.variants.find(v => v.size === item.size);
-
-            if (!variant) {
-                return res.status(404).json({ 
-                    success:false,
-                    message: `Size ${item.size} not found for product ${product.name}` 
-                });
-            }
-            totalAmount += variant.price * item.quantity;
-
-        }
-
-        let discountAmount = 0;
-        if (couponCode) {
-            const coupon = await Coupon.findOne({ 
-                code: couponCode, 
-                startDate: { $lte: new Date() },
-                expiryDate: { $gte: new Date() }
+        if (!totalAmount || isNaN(totalAmount)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid amount provided'
             });
-
-            if (coupon && totalAmount >= coupon.minimumPurchaseAmount) {
-                discountAmount = Math.min(
-                    (totalAmount * coupon.discount) / 100,
-                    coupon.maximumDiscountAmount
-                );
-                totalAmount -= discountAmount;
-            }
         }
 
         const amountInPaise = Math.round(totalAmount * 100);
@@ -66,7 +34,6 @@ const razorpayorder = async(req,res)=>{
             success: true,
             order,
             amount: amountInPaise,
-            discountAmount
         });
 
     }catch(error){

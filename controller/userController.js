@@ -1,6 +1,7 @@
 const express =require("express")
 const User = require("../model/userModel");
 const Product = require("../model/productModel")
+const Offer = require('../model/offerModel')
 const UserOTPVerification = require("../model/userOTPverifivation")
 const bcrypt = require('bcrypt');
 require("dotenv").config();
@@ -380,15 +381,124 @@ const login = async (req, res) => {
     }
  };
 
+ const getActiveOffers = async(req,res)=>{
+  try {
+    const currentDate = new Date();
+    console.log('Current server date:', currentDate);
+
+    const activeOffers = await Offer.find({
+      startDate: { $lte: currentDate },
+      endDate: { $gte: currentDate }
+    }).populate({
+      path: 'targetId',
+      select: 'name _id',
+      refPath: 'applicableTo'
+    });
+
+    console.log('Active offers found:', activeOffers.map(offer => ({
+      id: offer._id,
+      name: offer.name,
+      startDate: offer.startDate,
+      endDate: offer.endDate,
+      target: offer.targetId?.name
+    })));
+
+    // const validOffers = activeOffers.filter(offer => offer.targetId != null);
+
+    // console.log('Number of valid active offers found:', validOffers.length);
+    // console.log('Valid offers:', validOffers.map(o => ({
+    //   name: o.name,
+    //   startDate: o.startDate,
+    //   endDate: o.endDate
+    // })));
+    
+    return res.status(200).json(activeOffers)
+
+  } catch (err) {
+    console.error('Active Offers Fetch Error:', err);
+    return res.status(500).json({
+      error: "Failed to fetch active offers",
+      details: err.message
+    });
+  }
+ }
+
 const getSingleProductData = async(req,res)=>{
    try{
     const id = req.params.id;
-    const product = await Product.findById(id).populate("category","name");
+    const product = await Product.findOne({ 
+      _id: id,
+      isDeleted: false 
+    })
+    .populate("category", "name")
+
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
-    res.json(product);
+
+    let offerDetails = null;
+    if (product.currentOffer) {
+      const offer = await Offer.findById(product.currentOffer);
+      
+      if (offer) {
+        const currentDate = new Date();
+        const offerEndDate = new Date(offer.endDate);
+
+        if (offerEndDate < currentDate) {
+          await Product.updateOne(
+            { _id: product._id },
+            { $unset: { currentOffer: 1 } }
+          );
+        } else {
+          offerDetails = {
+            id: offer._id,
+            name: offer.name,
+            discountType: offer.discountType,
+            discountValue: offer.discountValue,
+            maxDiscountAmount: offer.maxDiscountAmount,
+            endDate: offer.endDate
+          };
+        }
+      }
+    }
+
+    const formattedProduct = {
+      _id: product._id,
+      name: product.name,
+      category: product.category,
+      type: product.type,
+      brand: product.brand,
+      images: product.images,
+      description: product.description,
+      variants: product.variants.map(variant => {
+        const basePrice = variant.price;
+        let discountedPrice = basePrice;
+        
+        if (offerDetails) {
+          if (offerDetails.discountType === 'PERCENTAGE') {
+            const discount = (basePrice * offerDetails.discountValue) / 100;
+            discountedPrice = basePrice - Math.min(discount, offerDetails.maxDiscountAmount || discount);
+          } else if (offerDetails.discountType === 'FIXED') {
+            discountedPrice = basePrice - offerDetails.discountValue;
+          }
+          discountedPrice = Math.round(discountedPrice * 100) / 100;
+        }
+
+        return {
+          size: variant.size,
+          price: basePrice,
+          discountedPrice: discountedPrice !== basePrice ? discountedPrice : undefined,
+          stock: variant.stock
+        };
+      }),
+      currentOffer: offerDetails,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt
+    };
+
+
+    res.json(formattedProduct);
 
    }catch (error) {
     console.error('Error fetching product:', error);
@@ -401,6 +511,7 @@ const getSingleProductData = async(req,res)=>{
   }
 
 }
+
 
 const getUserData = async(req,res)=>{
     try{
@@ -456,5 +567,6 @@ module.exports = {
     logout,
     getProductData,
     getSingleProductData,
-    getUserData
+    getUserData,
+    getActiveOffers
 }

@@ -434,6 +434,63 @@ const deleteAddress = async (req, res) => {
     }
 };
 
+const addAddressInCheckout = async(req,res)=>{
+    try {
+        const userId = req.params.id;
+
+
+        const requiredFields = ['fullName', 'city', 'Address', 'country', 'state', 'district', 'pincode', 'phone'];
+        const missingFields = requiredFields.filter(field => !req.body[field]);
+        
+        if (missingFields.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Missing required fields: ${missingFields.join(', ')}`
+            });
+        }
+
+        const existingAddresses = await Address.find({ user: userId });
+
+        const addressData = {
+            ...req.body,
+            user: userId,
+            isDefault: existingAddresses.length === 0
+        };
+
+
+        const newAddress = new Address(addressData);
+        await newAddress.save();
+
+        if (addressData.isDefault) {
+            await Address.updateMany(
+                { 
+                    user: userId, 
+                    _id: { $ne: newAddress._id },
+                    isDefault: true 
+                },
+                { isDefault: false }
+            );
+        }
+
+        const updatedAddresses = await Address.find({ user: userId })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Address added successfully',
+            addresses: updatedAddresses
+        });
+
+    } catch (error) {
+        console.error('Error in addAddressInCheckout:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error while adding address',
+            error: error.message
+        });
+    }
+}
+
 
 
 
@@ -445,5 +502,6 @@ module.exports = {
     getAdressOfaUser,
     setNewAddressForUser,
     updateAddress,
-    deleteAddress
+    deleteAddress,
+    addAddressInCheckout
 }

@@ -9,106 +9,122 @@ const Order = require('../model/orderSchema')
 const Coupon = require('../model/coupenModel')
 const Wallet = require('../model/walletModel')
 
+
+const calculateOrderPricing = async (products, couponCode) => {
+    let subtotal = 0;
+    const productDetails = [];
+    
+
+    for (const item of products) {
+        const product = await Product.findById(item.product).populate('currentOffer');
+        
+        if (!product) {
+            throw new Error(`Product not found`);
+        }
+
+        if (product.isDeleted) {
+            throw new Error(`${product.name} is no longer available`);
+        }
+
+        const variant = product.variants.find(v => v.size === item.size);
+        
+        if (!variant) {
+            throw new Error(`Selected size ${item.size} not available for ${product.name}`);
+        }
+
+        let finalPrice = variant.price;
+        let offerDiscount = 0;
+
+        if (product.currentOffer) {
+            const currentDate = new Date();
+            
+            if (currentDate >= product.currentOffer.startDate && currentDate <= product.currentOffer.endDate) {
+                if (product.currentOffer.discountType === 'PERCENTAGE') {
+                    offerDiscount = (variant.price * product.currentOffer.discountValue) / 100;
+                    if (product.currentOffer.maxDiscountAmount) {
+                        offerDiscount = Math.min(offerDiscount, product.currentOffer.maxDiscountAmount);
+                    }
+                } else if (product.currentOffer.discountType === 'FIXED') {
+                    offerDiscount = product.currentOffer.discountValue;
+                }
+                
+                finalPrice = Math.max(variant.price - offerDiscount, 0);
+            }
+        }
+
+        const itemTotal = finalPrice * item.quantity;
+        subtotal += itemTotal;
+
+        productDetails.push({
+            productId: product._id,
+            name: product.name,
+            size: item.size,
+            quantity: item.quantity,
+            originalPrice: variant.price,
+            offerDiscount,
+            finalPrice,
+            total: itemTotal,
+            variantId: variant._id,
+            offer: product.currentOffer ? {
+                name: product.currentOffer.name,
+                discountType: product.currentOffer.discountType,
+                discountValue: product.currentOffer.discountValue
+            } : null
+        });
+    }
+
+    let discountAmount = 0;
+    let couponDetails = null;
+
+    if (couponCode) {
+        const currentDate = new Date();
+        const coupon = await Coupon.findOne({ 
+            code: couponCode,
+            startDate: { $lte: currentDate },
+            expiryDate: { $gt: currentDate }
+        });
+
+        if (!coupon) {
+            throw new Error('Invalid or expired coupon code');
+        }
+
+        if (coupon.maxUses && coupon.usageCount >= coupon.maxUses) {
+            throw new Error('Coupon usage limit exceeded');
+        }
+
+        if (subtotal < coupon.minimumPurchaseAmount) {
+            throw new Error(`Minimum purchase amount of $${coupon.minimumPurchaseAmount} required for coupon`);
+        }
+
+        discountAmount = Math.min((subtotal * coupon.discount) / 100, coupon.maximumDiscountAmount);
+        couponDetails = {
+            code: coupon.code,
+            discountAmount,
+            discount: coupon.discount,
+            couponId: coupon._id
+        };
+    }
+
+    const totalAmount = Math.round((subtotal - discountAmount) * 100) / 100;
+
+    return {
+        subtotal,
+        discountAmount,
+        totalAmount,
+        couponDetails,
+        productDetails
+    };
+};
+
 const orderAmount = async(req, res) => {
     try {
         const { products, couponCode } = req.body;
-        let subtotal = 0;
-        const productDetails = [];
-
-        // Calculate total amount based on product variants
-        for (const item of products) {
-            // Find the product
-            const product = await Product.findById(item.product);
-            
-            if (!product) {
-                return res.status(404).json({ 
-                    success: false,
-                    message: `Product not found` 
-                });
-            }
-
-            if (product.isDeleted) {
-                return res.status(400).json({
-                    success: false,
-                    message: `${product.name} is no longer available`
-                });
-            }
-
-            // Find the variant with matching size
-            const variant = product.variants.find(v => v.size === item.size);
-            
-            if (!variant) {
-                return res.status(404).json({ 
-                    success: false,
-                    message: `Selected size ${item.size} not available for ${product.name}` 
-                });
-            }
-
-
-            // Calculate price for this item
-            const itemTotal = variant.price * item.quantity;
-            subtotal += itemTotal;
-
-            // Store product details for response
-            productDetails.push({
-                productId: product._id,
-                name: product.name,
-                size: item.size,
-                quantity: item.quantity,
-                price: variant.price,
-                total: itemTotal
-            });
-        }
-
-
-        let discountAmount = 0;
-        let couponDetails = null;
-
-        if (couponCode) {
-            const currentDate = new Date();
-            const coupon = await Coupon.findOne({ 
-                code: couponCode,
-                startDate: { $lte: currentDate },
-                expiryDate: { $gt: currentDate }
-            });
-            if (!coupon) {
-                return res.status(400).json({ success: false, message: 'Invalid or expired coupon code' });
-            }
-
-            if (coupon.maxUses && coupon.usageCount >= coupon.maxUses) {
-                return res.status(400).json({ success: false, message: 'Coupon usage limit exceeded' });
-            }
-
-            if (subtotal < coupon.minimumPurchaseAmount) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: `Minimum purchase amount of $${coupon.minimumPurchaseAmount} required for coupon` 
-                });
-            }
-            discountAmount = Math.min((subtotal * coupon.discount) / 100, coupon.maximumDiscountAmount);
-
-            couponDetails = {
-                code: coupon.code,
-                discountAmount,
-                discount: coupon.discount
-            };
-        } 
-        
+        const result = await calculateOrderPricing(products, couponCode);
        
-        // Round to 2 decimal places
-        const totalAmount = Math.round((subtotal - discountAmount) * 100) / 100;
-
         return res.status(200).json({
             success: true,
-            data: {
-                subtotal,
-                discountAmount,
-                totalAmount,
-                couponDetails,
-                productDetails
-            }
+            data: result
         });
-
     } catch (error) {
         console.error('Calculate order amount error:', error);
         return res.status(500).json({
@@ -119,14 +135,12 @@ const orderAmount = async(req, res) => {
     }
 };
 
-const placeOrder = async(req,res)=>{
-    try{
-        console.log(req.body)
+const placeOrder = async (req, res) => {
+    try {
         const { 
             userId, 
             products, 
             addressId, 
-            totalPrice, 
             paymentMethod, 
             couponCode,
             shippingFee = 0,
@@ -139,123 +153,32 @@ const placeOrder = async(req,res)=>{
             });
         }
 
-        const user = await User.findById(userId);
+
+        const [user, address] = await Promise.all([
+            User.findById(userId),
+            Address.findById(addressId)
+        ]);
+
         if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found' 
-            });
+            return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        const address = await Address.findById(addressId);
         if (!address) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Address not found' 
-            });
+            return res.status(404).json({ success: false, message: 'Address not found' });
         }
 
-        const validatedProducts = [];
-        let calculatedTotalPrice = 0;
-
-        for (const item of products) {
-
-            if (!item.product || !item.quantity || !item.size) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'Invalid product item structure. Ensure product, size, and quantity are provided.' 
-                });
-            }
-
-            const product = await Product.findById(item.product);
-            
-            if (!product) {
-                return res.status(404).json({ 
-                    success: false, 
-                    message: `Product with ID ${item.product} not found` 
-                });
-            } 
-
-            const variant = product.variants.find(v => v.size === item.size);
-
-            if (!variant) {
-                return res.status(404).json({ 
-                    success: false, 
-                    message: `Variant with ID ${item.variant} not found for product ${product.name}` 
-                });
-            }
-
-            const quantity = Number(item.quantity);
-            if (isNaN(quantity) || quantity <= 0) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: `Invalid quantity for product ${product.name}` 
-                });
-            }
-
-            // if (variant.stock < quantity) {
-            //     return res.status(400).json({ 
-            //         success: false, 
-            //         message: `Insufficient stock for product ${product.name}` 
-            //     });
-            // }
-
-            const variantPrice = Number(variant.price);
-            if (variantPrice === 0 || isNaN(variantPrice)) {
-                return res.status(500).json({ 
-                    success: false, 
-                    message: `Invalid price for product ${product.name}, variant ${variant.size}. Price: ${variant.price}` 
-                });
-            }
-
-            const productTotal = variantPrice * quantity;
-            calculatedTotalPrice += productTotal;
-         
-            validatedProducts.push({
-                 product: product._id,
-                variantSize: variant.size,
-                variantId: variant._id,
-                quantity: quantity,
-                price: variantPrice,
-                cartItemId: item.cartItemId
-            });       
-        }
-        let discountAmount = 0;
-        let appliedCoupon = null;
-
-        if (couponCode) {
-            const coupon = await Coupon.findOne({ code: couponCode });
-            
-            if (coupon && 
-                coupon.startDate <= new Date() && 
-                coupon.expiryDate >= new Date() &&
-                calculatedTotalPrice >= coupon.minimumPurchaseAmount) {
-                
-                discountAmount = Math.min(
-                    (calculatedTotalPrice * coupon.discount) / 100,
-                    coupon.maximumDiscountAmount
-                );
-                appliedCoupon = coupon._id;
-            }
-        }
-
-
-        const finalTotalPrice = Number((calculatedTotalPrice + shippingFee)-discountAmount);
-
-        if (isNaN(finalTotalPrice)) {
-            console.error('Final total price calculation failed', {
-                calculatedTotalPrice,
-                shippingFee
-            });
-            return res.status(500).json({ 
-                success: false, 
-                message: 'Failed to calculate order total' 
-            });
-        }   
+        const orderCalculation = await calculateOrderPricing(products, couponCode);
+        const finalTotalPrice = orderCalculation.totalAmount + shippingFee;
 
         const orderData = {
             user: userId,
-            products: validatedProducts,
+            products: orderCalculation.productDetails.map(item => ({
+                product: item.productId,
+                variantSize: item.size,
+                variantId: item.variantId,
+                quantity: item.quantity,
+                price: item.finalPrice
+            })),
             address: addressId,
             totalPrice: finalTotalPrice,
             paymentInfo: {
@@ -263,33 +186,25 @@ const placeOrder = async(req,res)=>{
                 status: 'PENDING'
             },
             shippingFee,
-            couponApplied: appliedCoupon,
-            discountAmount: discountAmount,
-            expectedDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+            couponApplied: orderCalculation.couponDetails?.couponId || null,
+            discountAmount: orderCalculation.discountAmount,
+            expectedDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         };
+
         const order = new Order(orderData);
-
-        try {
-            await order.validate();
-        } catch (validationError) {
-            console.error('Order validation failed:', validationError);
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Invalid order data',
-                error: validationError.message 
-            });
-        }
-
+        await order.validate();
         await order.save();
 
-        for (const item of validatedProducts) {
-            await Product.updateOne(
-                { _id: item.product, 'variants.size': item.variantSize },
+        await Promise.all(orderCalculation.productDetails.map(item => 
+            Product.updateOne(
+                { _id: item.productId, 'variants.size': item.size },
                 { $inc: { 'variants.$.stock': -item.quantity } }
-            );
-        }
+            )
+        ));
 
-        const cartItemIds = validatedProducts.map(item => item.cartItemId).filter(id => id);
+        const cartItemIds = products
+            .map(item => item.cartItemId)
+            .filter(id => id);
 
         if (cartItemIds.length > 0) {
             await Cart.deleteMany({
@@ -305,15 +220,16 @@ const placeOrder = async(req,res)=>{
             totalAmount: finalTotalPrice
         });
 
-    }catch(error){
+    } catch (error) {
         console.error('Order placement error:', error);
         res.status(500).json({ 
             success: false, 
-            message: 'Failed to place order',
-            error: error.message 
+            message: error.message || 'Failed to place order'
         });
     }
-}
+};
+
+
 const razorpayorder = async(req,res)=>{
     try {
         const instance = new Razorpay({
@@ -418,10 +334,9 @@ const razorpayPlaceOrder = async(req,res)=>{
             });
         }
 
+        const orderProducts = [];
+        const cartItemsToDelete = [];
 
-        let originalTotal = 0;
-        let discountAmount = 0;
-        let couponId = null;
 
         for (const item of products) {
             const product = await Product.findById(item.product);
@@ -431,6 +346,7 @@ const razorpayPlaceOrder = async(req,res)=>{
                     message: `Product not found: ${item.product}`
                 });
             }
+
             const variant = product.variants.find(v => v.size === item.size);
             if (!variant) {
                 return res.status(400).json({
@@ -438,31 +354,7 @@ const razorpayPlaceOrder = async(req,res)=>{
                     message: `Size ${item.size} not found for product ${product.name}`
                 });
             }
-            originalTotal += variant.price * item.quantity;
-        }
-        if (couponCode) {
-            const coupon = await Coupon.findOne({ 
-                code: couponCode,
-                startDate: { $lte: new Date() },
-                expiryDate: { $gte: new Date() }
-            });
 
-            if (coupon && originalTotal >= coupon.minimumPurchaseAmount) {
-                discountAmount = Math.min(
-                    (originalTotal * coupon.discount) / 100,
-                    coupon.maximumDiscountAmount
-                );
-                couponId = coupon._id;
-            }
-        }
-
-        const orderProducts = [];
-        const cartItemsToDelete = [];
-
-
-        for (const item of products) {
-            const product = await Product.findById(item.product);
-            
             await Product.updateOne(
                 { 
                     _id: product._id,
@@ -484,6 +376,18 @@ const razorpayPlaceOrder = async(req,res)=>{
             }
         }
 
+        let couponId = null;
+        if (couponCode) {
+            const coupon = await Coupon.findOne({ 
+                code: couponCode,
+                startDate: { $lte: new Date() },
+                expiryDate: { $gte: new Date() }
+            });
+            if (coupon) {
+                couponId = coupon._id;
+            }
+        }
+
         const expectedDeliveryDate = new Date();
         expectedDeliveryDate.setDate(expectedDeliveryDate.getDate() + 7);
 
@@ -492,14 +396,13 @@ const razorpayPlaceOrder = async(req,res)=>{
             user: userId,
             products: orderProducts,
             address: addressId,
-            totalPrice: originalTotal - discountAmount,
+            totalPrice: totalPrice,
             paymentInfo: {
                 method: paymentMethod,
                 transactionId: paymentDetails?.paymentId || null,
                 status: 'PENDING'
             },
             couponApplied: couponId,
-            discountAmount: discountAmount, 
             expectedDeliveryDate
         });
 
@@ -529,6 +432,7 @@ const razorpayPlaceOrder = async(req,res)=>{
         });
     }
 };
+
 const getOrderData = async(req,res)=>{
     try{
         const userId = req.params.id;
@@ -605,19 +509,27 @@ const getSingleOrderDetail = async(req,res)=>{
        }
        
        const order = await Order.findById(id)
-       .lean()
-       .populate({
-        path: 'products.product', 
-        model: 'product', 
-        select: 'name images type category brand description variants' 
-        })
-        .populate({
-            path: 'address', 
-            model: 'Address',
-            select: 'fullName Address city state district country pincode phone' 
-        });
+            .lean()
+            .populate({
+                path: 'products.product', 
+                model: 'product',
+                populate: {
+                    path: 'currentOffer',
+                    model: 'offer'
+                },
+                select: 'name images type category brand description variants currentOffer'
+            })
+            .populate({
+                path: 'address',
+                model: 'Address',
+                select: 'fullName Address city state district country pincode phone'
+            })
+            .populate({
+                path: 'couponApplied',
+                model: 'coupen',
+                select: 'code discount maximumDiscountAmount'
+            });
 
- 
        
        if(!order){
         return res.status(404).json({
@@ -626,29 +538,83 @@ const getSingleOrderDetail = async(req,res)=>{
         })
        }
 
+       const products = order.products.map(item => {
+        const basePrice = item.product?.variants?.[0]?.price || 0;
+        let finalPrice = basePrice;
+        let offerDiscount = 0;
 
-       const transformedOrder = {
-        _id: order._id,
-        products: order.products.map(item => ({
+        // Calculate offer discount if applicable
+        if (item.product?.currentOffer) {
+            const offer = item.product.currentOffer;
+            const now = new Date();
+            
+            if (now >= offer.startDate && now <= offer.endDate) {
+                if (offer.discountType === 'PERCENTAGE') {
+                    offerDiscount = (basePrice * offer.discountValue) / 100;
+                    if (offer.maxDiscountAmount) {
+                        offerDiscount = Math.min(offerDiscount, offer.maxDiscountAmount);
+                    }
+                } else if (offer.discountType === 'FIXED') {
+                    offerDiscount = offer.discountValue;
+                }
+                
+                finalPrice = basePrice - offerDiscount;
+            }
+        }
+
+        return {
             _id: item.product?._id,
             name: item.product?.name || 'Unknown Product',
             image: item.product?.images?.[0] || '/placeholder.svg',
             quantity: item.quantity || 1,
-            price: item.product?.variants?.[0]?.price || 0,
+            price: basePrice,
+            finalPrice: finalPrice,
             type: item.product?.type,
-            brand: item.product?.brand
-        })),
+            brand: item.product?.brand,
+            offerDiscount: offerDiscount * item.quantity
+        };
+    });
+
+
+    const totalOfferDiscounts = products.reduce((sum, product) => sum + product.offerDiscount, 0);
+ 
+    //  coupon discount
+    let couponDiscount = 0;
+    if (order.couponApplied) {
+        const subtotalAfterOffers = products.reduce((sum, product) => 
+            sum + (product.finalPrice * product.quantity), 0);
+        
+        if (order.couponApplied.discount) {
+            couponDiscount = (subtotalAfterOffers * order.couponApplied.discount) / 100;
+            
+            // Apply maximum discount limit if exists
+            if (order.couponApplied.maximumDiscountAmount) {
+                couponDiscount = Math.min(couponDiscount, order.couponApplied.maximumDiscountAmount);
+            }
+        }
+    }
+
+    const transformedOrder = {
+        _id: order._id,
+        products: products,
         address: order.address ? {
             name: order.address.fullName || 'Not Provided',
             address: `${order.address.Address || ''}, ${order.address.district || ''}, ${order.address.city || ''}, ${order.address.state || ''} - ${order.address.pincode || ''}`.trim(),
             phone: order.address.phone || '',
-            email: ''  // Add email if available in your schema
+            email: ''
         } : null,
         totalPrice: order.totalPrice || 0,
-        status:order.paymentInfo.status,
+        offerDiscounts: totalOfferDiscounts,
+        couponDiscount: couponDiscount,
+        discountAmount: order.discountAmount || 0,
+        status: order.paymentInfo.status,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
-   };
+        appliedCoupon: order.couponApplied ? {
+            code: order.couponApplied.code,
+            discount: order.couponApplied.discount
+        } : null
+    };
 
        res.status(200).json({
         success:true,
@@ -740,7 +706,6 @@ const cancelOrder = async(req,res)=>{
             });
         }
  }
-
 
 //admin side 
 const getOrderDataAdmin = async(req,res)=>{

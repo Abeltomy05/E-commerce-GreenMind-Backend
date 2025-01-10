@@ -4,6 +4,7 @@ const Product = require("../model/productModel")
 const Category = require("../model/categoryModel")
 const User = require('../model/userModel')
 const Cart = require('../model/cartModel')
+const Offer = require('../model/offerModel')
 
 
 const getCartData = async (req, res) => {
@@ -140,25 +141,69 @@ const getCartData = async (req, res) => {
       const cartItems = await Cart.find({ user: userId })
       .populate({
         path: 'product',
-        select: 'name images variants' 
+        select: 'name images variants currentOffer' 
       })
       .lean();
 
-      const formattedCartItems = cartItems.map(item => ({
-        id: item._id,
-        name: item.product.name,
-        price: item.variant.price,
-        size: item.variant.size,
-        quantity: item.quantity,
-        image: item.product.images[0], 
-        checked: true, 
-        productId: item.product._id,
-      }));
+      const formattedCartItems = await Promise.all(cartItems.map(async item => {
+        let price = item.variant.price;
+        let offerDetails = null;
 
-      res.status(200).json({
-        success: true,
-        data: formattedCartItems
-      });
+        if (item.product.currentOffer) {
+          try {
+            const offer = await Offer.findById(item.product.currentOffer);
+
+            if (offer) {
+              const currentDate = new Date();
+              const offerEndDate = new Date(offer.endDate);
+
+              if (currentDate <= offerEndDate) {
+                offerDetails = {
+                  name: offer.name,
+                  discountType: offer.discountType,
+                  discountValue: offer.discountValue,
+                  maxDiscountAmount: offer.maxDiscountAmount
+                };
+
+                if (offer.discountType === 'PERCENTAGE') {
+                  const discount = (price * offer.discountValue) / 100;
+                  price = price - Math.min(discount, offer.maxDiscountAmount || discount);
+                } else if (offer.discountType === 'FIXED') {
+                  price = price - offer.discountValue;
+                }
+
+                price = Math.round(price * 100) / 100;
+              }
+              else {
+                await Product.updateOne(
+                  { _id: item.product._id },
+                  { $unset: { currentOffer: 1 } }
+                );
+              }
+            }
+          } catch (offerError) {
+            console.error('Error fetching offer details:', offerError);
+          }
+        }
+
+          return {
+            id: item._id,
+            name: item.product.name,
+            originalPrice: item.variant.price,
+            currentPrice: price,
+            size: item.variant.size,
+            quantity: item.quantity,
+            image: item.product.images[0],
+            checked: true,
+            productId: item.product._id,
+            offer: offerDetails 
+          };
+        }));
+    
+        res.status(200).json({
+          success: true,
+          data: formattedCartItems
+        });
     }catch(error){
       console.error('Error fetching cart items:', error);
       res.status(500).json({

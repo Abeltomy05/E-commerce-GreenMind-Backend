@@ -238,10 +238,75 @@ const getProducts = async (req, res) => {
     }
   };
 
+  //product-view
+  const getoffer = async(req,res)=>{
+    try {
+        const offerId = req.params.id;
+   
+        if (!offerId) {
+          return res.status(400).json({ 
+            status: 'error', 
+            message: 'Offer ID is required' 
+          });
+        }
+    
+        const offer = await Offer.findOne({
+          _id: offerId,
+          startDate: { $lte: new Date() },
+          endDate: { $gte: new Date() }
+        }).populate('targetId');
+    
+
+        if (!offer) {
+          return res.status(404).json({ 
+            status: 'error', 
+            message: 'No valid offer found' 
+          });
+        }
+    
+        const targetExists = offer.targetId != null;
+        if (!targetExists) {
+          return res.status(404).json({ 
+            status: 'error', 
+            message: 'Offer target no longer exists' 
+          });
+        }
+
+        res.status(200).json({
+          _id: offer._id,
+          name: offer.name,
+          description: offer.description,
+          discountType: offer.discountType,
+          discountValue: offer.discountValue,
+          startDate: offer.startDate,
+          endDate: offer.endDate,
+          applicableTo: offer.applicableTo,
+          targetId: offer.targetId,
+          maxDiscountAmount: offer.maxDiscountAmount || null
+        });
+    
+      } catch (error) {
+        console.error('Error in getoffer:', error);
+
+        if (error.name === 'CastError') {
+          return res.status(400).json({ 
+            status: 'error', 
+            message: 'Invalid offer ID format' 
+          });
+        }
+    
+        res.status(500).json({ 
+          status: 'error', 
+          message: 'Internal server error while fetching offer details' 
+        });
+      }
+  }
+
 module.exports = {
     getOffers,
     createOffer,
     deleteOffer,
     getProducts,
-    getCategories
+    getCategories,
+    getoffer
 }

@@ -5,6 +5,7 @@ const Category = require("../model/categoryModel")
 const User = require('../model/userModel')
 const Cart = require('../model/cartModel')
 const Wishlist = require('../model/wishlistModel')
+const Offer = require('../model/offerModel')
 
 
 const addToWishlist = async (req, res) => {
@@ -52,11 +53,15 @@ const addToWishlist = async (req, res) => {
     try {
       const userId = req.user._id;
       const wishlist = await Wishlist.find({ user: userId })
-        .populate({
+      .populate({
           path: 'product',
-          select: 'name images variants isDeleted',
-          match: { isDeleted: false }
-        });
+          select: 'name images variants isDeleted currentOffer',
+          match: { isDeleted: false },
+          populate: {
+              path: 'currentOffer',
+              select: 'discountType discountValue maxDiscountAmount'
+          }
+      });
   
       // Filter out items where product is null (due to isDeleted match)
       const activeWishlist = wishlist.filter(item => item.product !== null);

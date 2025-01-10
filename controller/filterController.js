@@ -31,43 +31,52 @@ const productFilter = async(req,res)=>{
         let query = { isDeleted: false };
 
         if (category) {
-            const categoryDoc = await Category.findOne({ 
-                name: category, 
+            const categoryNames = category.split(',');
+            const categoryDocs = await Category.find({ 
+                name: { $in: categoryNames }, 
                 isActive: true 
             });
-            if (categoryDoc) {
-                query.category = categoryDoc._id;
+            if (categoryDocs.length > 0) {
+                query.category = { $in: categoryDocs.map(doc => doc._id) };
             }
         }
 
         if (type) {
-            query.type = type;
+            const types = type.split(',');
+            query.type = { $in: types };
         }
       
         let pipeline = [
             { $match: query },
-            // Lookup category details
+
             {
                 $lookup: {
                     from: 'categories',
                     localField: 'category',
                     foreignField: '_id',
-                    as: 'categoryInfo'
+                    as: 'category'
                 }
             },
-            { $unwind: '$categoryInfo' },
+            { $unwind: '$category' },
             // Only include products with active categories
-            { $match: { 'categoryInfo.isActive': true } }
+            { $match: { 'category.isActive': true } }
         ];
 
         if (priceSort || nameSort) {
             let sortStage = {};
             
             if (priceSort) {
-                // Add a field for minimum price from variants for sorting
                 pipeline.push({
                     $addFields: {
-                        minPrice: { $min: '$variants.price' }
+                        minPrice: { 
+                            $min: {
+                                $map: {
+                                    input: '$variants',
+                                    as: 'variant',
+                                    in: '$$variant.price'
+                                }
+                            }
+                        }
                     }
                 });
                 sortStage.minPrice = priceSort === 'lowToHigh' ? 1 : -1;
@@ -77,7 +86,6 @@ const productFilter = async(req,res)=>{
                 sortStage.name = nameSort === 'aToZ' ? 1 : -1;
             }
 
-            // Add the sort stage to the pipeline
             pipeline.push({ $sort: sortStage });
         }
 
@@ -93,7 +101,7 @@ const productFilter = async(req,res)=>{
                 images: 1,
                 description: 1,
                 variants: 1,
-                categoryName: '$categoryInfo.name'
+                category: 1 
             }
         });
 

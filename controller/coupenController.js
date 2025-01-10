@@ -185,7 +185,7 @@ const applyCoupen = async(req,res)=>{
           minimumPurchaseAmount: { $lte: numericOrderAmount  },
           $expr: { $lt: ["$usageCount", "$maxUses"] }
         });
-        console.log('Coupon:', coupon);
+    
     
         if (!coupon) {
           return res.status(400).json({

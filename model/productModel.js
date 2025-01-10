@@ -35,7 +35,7 @@ const productSchema = new mongoose.Schema({
   }],
   currentOffer: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Offer'
+    ref: 'offer'
   }
   
 }, {
