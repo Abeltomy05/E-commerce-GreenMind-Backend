@@ -8,7 +8,7 @@ const {categoryData,addCategoryData,categoryStatus,categoryEdit,categoryDataForA
 const authMiddleware = require("../middleware/authMiddleware")
 const {getOrderDataAdmin,changeOrderStatus,cancelOrderAdmin,getReturnRequests,approveReturnRequest} = require('../controller/orderController')
 const {coupenData,createcoupon,deletecoupon} = require('../controller/coupenController')
-const {getOrders} = require('../controller/adminDashboard')
+const {getOrders,getCategorySalesData,getTopItems } = require('../controller/adminDashboard')
 const {getOffers,createOffer,getProducts,getCategories,deleteOffer} = require('../controller/offerController')
 
 adminRoute.post('/login',adminLogin);
@@ -40,6 +40,8 @@ adminRoute.post('/createcoupon',createcoupon);
 adminRoute.delete('/deletecoupon/:id',deletecoupon);
 //dashboard
 adminRoute.get('/getorders',getOrders)
+adminRoute.get('/category-sales', getCategorySalesData)
+adminRoute.get('/bestsellingitems', getTopItems)
 //offers
 adminRoute.get('/getoffers',getOffers)
 adminRoute.post('/createoffer',createOffer)

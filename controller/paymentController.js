@@ -20,8 +20,8 @@ const razorpayorder = async(req,res)=>{
                 message: 'Invalid amount provided'
             });
         }
-
-        const amountInPaise = Math.round(totalAmount * 100);
+        const totalWithShipping = totalAmount + 50;
+        const amountInPaise = Math.round(totalWithShipping  * 100);
 
         const options = {
             amount: amountInPaise,

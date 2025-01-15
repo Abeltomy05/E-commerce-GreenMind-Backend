@@ -529,6 +529,67 @@ const getUserData = async(req,res)=>{
     }
 }
 
+const getRelatedProducts = async(req,res)=>{
+  try {
+  const { categoryId, productId } = req.params;
+
+  const relatedProducts = await Product.find({
+    category: categoryId,
+    _id: { $ne: productId },
+    isDeleted: false
+  })
+  .populate('category', 'name') 
+  .populate('currentOffer') 
+  .select('name images category variants currentOffer') 
+  .limit(4); 
+
+  if (!relatedProducts || relatedProducts.length === 0) {
+    return res.status(404).json({ message: "No related products found" });
+  }
+
+  const processedProducts = relatedProducts.map(product => {
+    const productObj = product.toObject();
+    
+    if (productObj.currentOffer) {
+      const offer = productObj.currentOffer;
+      const currentDate = new Date();
+      
+      if (currentDate >= offer.startDate && currentDate <= offer.endDate) {
+        productObj.variants = productObj.variants.map(variant => {
+          const originalPrice = variant.price;
+          let discountAmount = 0;
+          
+          if (offer.discountType === 'PERCENTAGE') {
+            discountAmount = (originalPrice * offer.discountValue) / 100;
+
+            if (offer.maxDiscountAmount) {
+              discountAmount = Math.min(discountAmount, offer.maxDiscountAmount);
+            }
+          } else if (offer.discountType === 'FIXED') {
+            discountAmount = offer.discountValue;
+          }
+          
+          return {
+            ...variant,
+            originalPrice: originalPrice,
+            offerPrice: Math.max(originalPrice - discountAmount, 0), 
+            discountAmount: discountAmount,
+            discountPercentage: ((discountAmount / originalPrice) * 100).toFixed(1)
+          };
+        });
+      }
+    }
+    
+    return productObj;
+  });
+
+  res.status(200).json(processedProducts);
+}catch (error) {
+  console.error('Error in getRelatedProducts:', error);
+  res.status(500).json({ message: "Internal server error", error: error.message });
+}
+}
+
 
 const logout = async (req, res) => {
     try {
@@ -568,5 +629,6 @@ module.exports = {
     getProductData,
     getSingleProductData,
     getUserData,
-    getActiveOffers
+    getActiveOffers,
+    getRelatedProducts
 }

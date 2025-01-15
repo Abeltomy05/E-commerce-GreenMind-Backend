@@ -14,6 +14,7 @@ const calculateOrderPricing = async (products, couponCode) => {
     let subtotal = 0;
     const productDetails = [];
     
+    const shippingFee = 50;
 
     for (const item of products) {
         const product = await Product.findById(item.product).populate('currentOffer');
@@ -109,6 +110,7 @@ const calculateOrderPricing = async (products, couponCode) => {
 
     return {
         subtotal,
+        shippingFee,
         discountAmount,
         totalAmount,
         couponDetails,
@@ -143,7 +145,6 @@ const placeOrder = async (req, res) => {
             addressId, 
             paymentMethod, 
             couponCode,
-            shippingFee = 0,
         } = req.body;
 
         if (!userId || !products || !addressId || !paymentMethod) {
@@ -168,7 +169,7 @@ const placeOrder = async (req, res) => {
         }
 
         const orderCalculation = await calculateOrderPricing(products, couponCode);
-        const finalTotalPrice = orderCalculation.totalAmount + shippingFee;
+        const finalTotalPrice = orderCalculation.totalAmount;
 
         const orderData = {
             user: userId,
@@ -185,7 +186,7 @@ const placeOrder = async (req, res) => {
                 method: paymentMethod,
                 status: 'PENDING'
             },
-            shippingFee,
+            shippingFee: orderCalculation.shippingFee,
             couponApplied: orderCalculation.couponDetails?.couponId || null,
             discountAmount: orderCalculation.discountAmount,
             expectedDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -841,14 +842,26 @@ const getOrderForReturn = async (req, res) => {
         _id: orderId,
         user: userId,
         isDeleted: false
-      }).populate({
-        path: 'products.product',
-        select: 'name images category variants',
-        populate: {
-          path: 'category',
-          select: 'name'
+      }).populate([
+        {
+          path: 'products.product',
+          select: 'name images category variants currentOffer',
+          populate: [
+            {
+              path: 'category',
+              select: 'name'
+            },
+            {
+              path: 'currentOffer',
+              select: 'discountType discountValue maxDiscountAmount'
+            }
+          ]
+        },
+        {
+          path: 'couponApplied',
+          select: 'discount maximumDiscountAmount'
         }
-      });
+      ]);
   
       if (!order) {
         return res.status(404).json({ message: 'Order not found' });
@@ -870,7 +883,42 @@ const getOrderForReturn = async (req, res) => {
         return res.status(400).json({ message: 'Only delivered orders can be returned' });
       }
   
-      res.json(order);
+      // Calculate final prices with offers and coupon
+      const productsWithFinalPrices = order.products.map(orderProduct => {
+        const product = orderProduct.product;
+        const variant = product.variants[0];
+        let finalPrice = variant.price;
+  
+        // Apply product offer if exists
+        if (product.currentOffer) {
+          const offer = product.currentOffer;
+          if (offer.discountType === 'PERCENTAGE') {
+            const discountAmount = (finalPrice * offer.discountValue) / 100;
+            finalPrice -= Math.min(discountAmount, offer.maxDiscountAmount || discountAmount);
+          } else {
+            finalPrice -= Math.min(offer.discountValue, offer.maxDiscountAmount || offer.discountValue);
+          }
+        }
+  
+        // Apply coupon discount proportionally if exists
+        if (order.couponApplied) {
+          const couponDiscount = (finalPrice / order.totalPrice) * Math.min(
+            order.discountAmount,
+            order.couponApplied.maximumDiscountAmount
+          );
+          finalPrice -= couponDiscount;
+        }
+  
+        return {
+          ...orderProduct.toObject(),
+          finalPrice: Math.round(finalPrice * 100) / 100
+        };
+      });
+  
+      res.json({
+        ...order.toObject(),
+        products: productsWithFinalPrices
+      });
     } catch (error) {
       console.error('Error in getOrderForReturn:', error);
       res.status(500).json({ message: 'Internal server error' });
@@ -997,17 +1045,17 @@ const approveReturnRequest = async (req, res) => {
             });
         }
 
-        const existingRefund = await Wallet.findOne({
-            order: orderId,
-            type: 'returned'
-        });
+        // const existingRefund = await Wallet.findOne({
+        //     order: orderId,
+        //     type: 'returned'
+        // });
 
-        if (existingRefund) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Refund has already been processed for this return' 
-            });
-        }
+        // if (existingRefund) {
+        //     return res.status(400).json({ 
+        //         success: false, 
+        //         message: 'Refund has already been processed for this return' 
+        //     });
+        // }
 
         const order = await Order.findOneAndUpdate(
             { 
@@ -1060,6 +1108,50 @@ const approveReturnRequest = async (req, res) => {
     }
 }
 
+const rateOrder = async (req, res) => {
+    try {
+      const { orderId, rating, feedback } = req.body;
+      
+      if (!orderId || !rating) {
+        return res.status(400).json({
+          success: false,
+          message: 'Order ID and rating are required'
+        });
+      }
+  
+      const order = await Order.findById(orderId);
+      
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+  
+      // Update the order with rating information
+      order.rating = {
+        stars: rating,
+        feedback: feedback || '',
+        createdAt: new Date()
+      };
+  
+      await order.save();
+  
+      return res.status(200).json({
+        success: true,
+        message: 'Rating submitted successfully',
+        data: order
+      });
+    } catch (error) {
+      console.error('Error in rateOrder:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to submit rating',
+        error: error.message
+      });
+    }
+  };
+
 
 module.exports = {
     placeOrder,
@@ -1074,5 +1166,6 @@ module.exports = {
     getOrderForReturn,
     handleReturnRequest,
     getReturnRequests,
-    approveReturnRequest
+    approveReturnRequest,
+    rateOrder
 }

@@ -69,6 +69,11 @@ discountAmount: {
   },
 expectedDeliveryDate: {
     type: Date
+  },
+  rating: {
+    stars: Number, 
+    feedback: String,
+    createdAt: Date
   }
 }, {
   timestamps: true  
