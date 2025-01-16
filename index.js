@@ -23,7 +23,11 @@ app.use(
   session({
     secret:"123abel456tomy",
     resave:false,
-    saveUninitialized:true,
+    saveUninitialized:false,
+    cookie: {
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
   })
 );
 
@@ -36,8 +40,9 @@ passport.use(
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: "/auth/google/callback",
     scope:["profile","email"],
+    passReqToCallback: true
   },
-  async (accessToken, refreshToken, profile, done) => {
+  async (request, accessToken, refreshToken, profile, done) => {
     try {
       console.log(profile)
       let user = await User.findOne({ googleId: profile.id });
@@ -50,6 +55,7 @@ passport.use(
           email: profile.emails[0].value,
           googleId: profile.id,
           isGoogleUser: true,
+          verified: true,
           profileImage: profile.photos && profile.photos.length > 0 
            ? profile.photos[0].value 
            : 'default_profile_image_url'
@@ -75,7 +81,9 @@ const corsOptions = {
     origin: 'http://localhost:5173', 
     credentials: true, 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'],
+    preflightContinue: true
   };
   
   app.use(cors(corsOptions));

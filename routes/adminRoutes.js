@@ -1,6 +1,6 @@
 const express = require("express")
 const adminRoute = express.Router()
-const {adminLogin,getUserData,deleteUser,editUser,isBlock,} = require("../controller/adminController")
+const {adminLogin,getUserData,deleteUser,editUser,isBlock,refreshToken,logoutAdmin} = require("../controller/adminController")
 const {getProductData,addProduct,softDeleteProduct,editProduct} = require("../controller/productController")
 const {cloudinaryImgUpload} = require("../controller/cloudinaryController")
 const {userCount} = require("../controller/dashboardController")
@@ -10,42 +10,48 @@ const {getOrderDataAdmin,changeOrderStatus,cancelOrderAdmin,getReturnRequests,ap
 const {coupenData,createcoupon,deletecoupon} = require('../controller/coupenController')
 const {getOrders,getCategorySalesData,getTopItems } = require('../controller/adminDashboard')
 const {getOffers,createOffer,getProducts,getCategories,deleteOffer} = require('../controller/offerController')
+const {verifyAdmin} = require('../middleware/authMiddleware')
 
 adminRoute.post('/login',adminLogin);
-adminRoute.get('/data',getUserData);
-adminRoute.delete('/delete/:id',deleteUser);
-adminRoute.put('/edit/:id',editUser);
-adminRoute.put('/block/:id',isBlock);
-adminRoute.get('/productdata',getProductData);
-adminRoute.post('/addproduct',addProduct);
-adminRoute.put('/editproduct/:id',editProduct);
+adminRoute.post('/refresh-token',refreshToken);
+
+
+adminRoute.get('/data',verifyAdmin,getUserData);
+adminRoute.delete('/delete/:id',verifyAdmin,deleteUser);
+adminRoute.put('/edit/:id',verifyAdmin,editUser);
+adminRoute.put('/block/:id',verifyAdmin,isBlock);
+adminRoute.get('/productdata',verifyAdmin,getProductData);
+adminRoute.post('/addproduct',verifyAdmin,addProduct);
+adminRoute.put('/editproduct/:id',verifyAdmin,editProduct);
 adminRoute.get('/generate-upload-url',cloudinaryImgUpload);
-adminRoute.put('/softdeleteproduct/:id',softDeleteProduct);
-adminRoute.get('/user-count',userCount);
-adminRoute.get('/categorydata',categoryData);
-adminRoute.post('/addcategorydata',addCategoryData);
-adminRoute.put('/categorystatus/:id',categoryStatus);
-adminRoute.put('/editcategory/:id',categoryEdit);
-adminRoute.get('/categorydata-addproduct',categoryDataForAddProduct);
+adminRoute.put('/softdeleteproduct/:id',verifyAdmin,softDeleteProduct);
+adminRoute.get('/user-count',verifyAdmin,userCount);
+adminRoute.get('/categorydata',verifyAdmin,categoryData);
+adminRoute.post('/addcategorydata',verifyAdmin,addCategoryData);
+adminRoute.put('/categorystatus/:id',verifyAdmin,categoryStatus);
+adminRoute.put('/editcategory/:id',verifyAdmin,categoryEdit);
+adminRoute.get('/categorydata-addproduct',verifyAdmin,categoryDataForAddProduct);
 //order
-adminRoute.get('/getorderdata',getOrderDataAdmin)
-adminRoute.patch('/changeorderstatus/:id',changeOrderStatus)
-adminRoute.patch('/cancelorder/:id',cancelOrderAdmin)
+adminRoute.get('/getorderdata',verifyAdmin,getOrderDataAdmin)
+adminRoute.patch('/changeorderstatus/:id',verifyAdmin,changeOrderStatus)
+adminRoute.patch('/cancelorder/:id',verifyAdmin,cancelOrderAdmin)
 //return
-adminRoute.get('/getreturnrequests',getReturnRequests);
-adminRoute.post('/approvereturn',approveReturnRequest);
+adminRoute.get('/getreturnrequests',verifyAdmin,getReturnRequests);
+adminRoute.post('/approvereturn',verifyAdmin,approveReturnRequest);
 //coupen
-adminRoute.get('/getcoupons',coupenData);
-adminRoute.post('/createcoupon',createcoupon);
-adminRoute.delete('/deletecoupon/:id',deletecoupon);
+adminRoute.get('/getcoupons',verifyAdmin,coupenData);
+adminRoute.post('/createcoupon',verifyAdmin,createcoupon);
+adminRoute.delete('/deletecoupon/:id',verifyAdmin,deletecoupon);
 //dashboard
-adminRoute.get('/getorders',getOrders)
-adminRoute.get('/category-sales', getCategorySalesData)
-adminRoute.get('/bestsellingitems', getTopItems)
+adminRoute.get('/getorders',verifyAdmin,getOrders)
+adminRoute.get('/category-sales',verifyAdmin,getCategorySalesData)
+adminRoute.get('/bestsellingitems',verifyAdmin,getTopItems)
 //offers
-adminRoute.get('/getoffers',getOffers)
-adminRoute.post('/createoffer',createOffer)
-adminRoute.delete('/deleteoffer/:id',deleteOffer)
-adminRoute.get('/products',getProducts )
-adminRoute.get('/categories',getCategories  )
+adminRoute.get('/getoffers',verifyAdmin,getOffers)
+adminRoute.post('/createoffer',verifyAdmin,createOffer)
+adminRoute.delete('/deleteoffer/:id',verifyAdmin,deleteOffer)
+adminRoute.get('/products',verifyAdmin,getProducts )
+adminRoute.get('/categories',verifyAdmin,getCategories  )
+//logout
+adminRoute.post('/logout',verifyAdmin,logoutAdmin)
 module.exports = adminRoute;

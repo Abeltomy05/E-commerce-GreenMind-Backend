@@ -676,17 +676,19 @@ const cancelOrder = async(req,res)=>{
               }
 
               if (order.paymentInfo.method !== 'cod') {
+                const shippingFee = 50;
+                const totalRefundAmount = order.totalPrice + shippingFee;
 
                 const latestWallet = await Wallet.findOne({ user: order.user })
                 .sort({ createdAt: -1 });
 
                 const currentBalance = latestWallet ? latestWallet.balance : 0;
-                const newBalance = currentBalance + order.totalPrice;
+                const newBalance = currentBalance + totalRefundAmount;
 
                 const newWallet = new Wallet({
                     user: order.user,
                     type: 'cancelled',
-                    amount: order.totalPrice,
+                    amount: totalRefundAmount,
                     balance: newBalance, 
                     order: orderId
                 });

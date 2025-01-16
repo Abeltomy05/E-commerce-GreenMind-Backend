@@ -190,10 +190,63 @@ const activeOffers = async(req,res)=>{
   }
 }
 
+const searchProducts = async(req,res)=>{
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ message: 'Search query is required' });
+    }
+
+    const searchPattern = new RegExp(query, 'i');
+
+    const categoryResults = await Category.find({
+      name: searchPattern,
+      isActive: true
+    });
+
+    const productResults = await Product.find({
+      $or: [
+        { name: searchPattern },
+        { brand: searchPattern },
+        { category: { $in: categoryResults.map(cat => cat._id) } }
+      ],
+      isDeleted: false,
+      'variants.stock': { $gt: 0 }
+    })
+    .populate({
+      path: 'category',
+      match: { isActive: true }, 
+      select: 'name description currentOffer'
+    })
+    .populate('currentOffer')
+    .select('-isDeleted'); 
+
+    const filteredProducts = productResults.filter(product => product.category !== null);
+
+    const productsWithAvailability = filteredProducts.map(product => {
+      const availableVariants = product.variants.filter(variant => variant.stock > 0);
+      return {
+        ...product.toObject(),
+        hasStock: availableVariants.length > 0,
+        availableVariants: availableVariants
+      };
+    });
+
+    res.json(productsWithAvailability);
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ message: 'Error performing search' });
+  }
+}
+
+
   module.exports = {
     getBestSellingProducts,
     categoriesForHome,
     categoryImage,
     getReviewsForHome,
-    activeOffers
+    activeOffers,
+    searchProducts
   }

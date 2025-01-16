@@ -11,12 +11,12 @@ const { addToWishlist,removeFromWishlist,checkWishlist,getWishlist} = require('.
 const {displayCoupons,applyCoupen} = require('../controller/coupenController')
 const {walletDetails} = require('../controller/walletController')
 const {getoffer} = require('../controller/offerController')
-const {getBestSellingProducts,categoriesForHome,categoryImage,getReviewsForHome,activeOffers} = require('../controller/homepageController')
+const {getBestSellingProducts,categoriesForHome,categoryImage,getReviewsForHome,activeOffers,searchProducts} = require('../controller/homepageController')
 
 userRoute.post("/signup",signup);
 userRoute.post("/verifyOTP",verifyOTP)
 userRoute.post("/resendOTP",resendOTP)
-userRoute.post('/refresh-token', refreshAccessToken);
+userRoute.get('/refresh-token', refreshAccessToken);
 userRoute.post("/login",login);
 userRoute.get("/getproductdata",verifyJWT,getProductData);
 userRoute.get("/getactiveoffers",verifyJWT,getActiveOffers);
@@ -73,5 +73,7 @@ userRoute.get('/categoriesforhome',verifyJWT,categoriesForHome)
 userRoute.get('/categoryimage/:id', verifyJWT, categoryImage);
 userRoute.get('/getreviewsforhome', verifyJWT, getReviewsForHome);
 userRoute.get('/activeoffersforhome', verifyJWT, activeOffers);
+//search
+userRoute.get('/search',verifyJWT,searchProducts)
 
 module.exports = userRoute

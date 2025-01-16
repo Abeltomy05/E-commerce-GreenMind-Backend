@@ -46,7 +46,7 @@ const walletDetails = async(req,res)=>{
                 error: error.message
             });
              }
-       }
+ }
  module.exports = {
      walletDetails
 }

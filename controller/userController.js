@@ -33,7 +33,7 @@ const generateAccessToken = (user) => {
             username:user.username,
         }, 
         process.env.ACCESS_TOKEN_SECRET, 
-        { expiresIn: '7d' }
+        { expiresIn: '1m' }
     );
 };
 
@@ -70,14 +70,14 @@ const refreshAccessToken = async (req, res) => {
 
         await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
 
-        res.status(200).cookie('accessToken', accessToken, {
+        res.cookie('accessToken', accessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
-          maxAge: 15 * 60 * 1000 // 15 minutes
+          maxAge: 1 * 60 * 1000 // 15 minutes
         });
 
-        res.status(200).cookie('refreshToken', newRefreshToken, {
+        res.cookie('refreshToken', newRefreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
@@ -87,6 +87,8 @@ const refreshAccessToken = async (req, res) => {
         return res.json({ 
           status: "VERIFIED",
           message: 'Token refreshed successfully',
+          accessToken,
+          refreshToken: newRefreshToken,
           user: {
             id: user._id,
             name: user.username,
@@ -333,7 +335,7 @@ const login = async (req, res) => {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 15 * 60 * 1000,
       path: '/' 
     });
 

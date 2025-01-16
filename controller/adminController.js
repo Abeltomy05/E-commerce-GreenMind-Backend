@@ -28,6 +28,58 @@ const generateRefreshToken = (user) => {
     );
 };
 
+const refreshToken = async (req, res) => {
+    try {
+      const refreshToken = req.cookies.refreshToken;
+      
+      if (!refreshToken) {
+        return res.status(401).json({ message: "No refresh token provided" });
+      }
+  
+      jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
+        if (err) {
+          return res.status(403).json({ message: "Invalid refresh token" });
+        }
+
+        const user = await User.findOne({ 
+          _id: decoded.userId,
+          refreshToken: refreshToken 
+        });
+  
+        if (!user) {
+          return res.status(401).json({ message: "User not found or token invalid" });
+        }
+  
+        const newAccessToken = generateAccessToken(user);
+        const newRefreshToken = generateRefreshToken(user);
+
+        await User.updateOne(
+          { _id: user._id },
+          { refreshToken: newRefreshToken }
+        );
+
+        res.cookie('accessToken', newAccessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 15 * 60 * 1000 // 15 minutes
+        });
+  
+        res.cookie('refreshToken', newRefreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+  
+        res.json({ message: "Tokens refreshed successfully" });
+      });
+    } catch (error) {
+      console.error('Refresh token error:', error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
 const adminLogin =async (req,res)=>{
     try{
         const {email,password} =req.body
@@ -164,6 +216,34 @@ const isBlock = async(req,res)=>{
 }
 
 
+const logoutAdmin = async (req, res) => {
+  try {
+      if (req.user?.userId) {
+          await User.updateOne(
+              { _id: req.user.userId },
+              { $unset: { refreshToken: "" } }
+          );
+      }
+
+      // Clear cookies
+      res.clearCookie('accessToken', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict'
+      });
+
+      res.clearCookie('refreshToken', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict'
+      });
+
+      res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({ success: false, message: 'Error during logout' });
+  }
+};
 
 module.exports = {
     adminLogin,
@@ -171,4 +251,6 @@ module.exports = {
     deleteUser,
     editUser,
     isBlock,
+    refreshToken,
+    logoutAdmin
 }

@@ -49,7 +49,40 @@ const verifyJWT = async(req, res, next) => {
   
 };
   
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const accessToken = req.cookies.accessToken;
+
+    if (!accessToken) {
+      return res.status(401).json({ message: "No access token provided" });
+    }
+
+    jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET, async (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ message: "Invalid or expired token" });
+      }
+
+      // Check if user is admin
+      const user = await User.findById(decoded.userId);
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      req.user = {
+        userId: decoded.userId,
+        email: decoded.email,
+        isAdmin: true
+      };
+      next();
+    });
+  } catch (error) {
+    console.error('Admin middleware error:', error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
   
 module.exports = {
-  verifyJWT
+  verifyJWT,
+  verifyAdmin
 }
