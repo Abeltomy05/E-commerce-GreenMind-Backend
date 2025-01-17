@@ -75,5 +75,26 @@ userRoute.get('/getreviewsforhome', verifyJWT, getReviewsForHome);
 userRoute.get('/activeoffersforhome', verifyJWT, activeOffers);
 //search
 userRoute.get('/search',verifyJWT,searchProducts)
-
+//landingpages
+//home
+userRoute.get('/bestsellingproductslandingpage',getBestSellingProducts)
+userRoute.get('/categoriesforhomelandingpage',categoriesForHome)
+userRoute.get('/categoryimagelandingpage/:id',categoryImage);
+userRoute.get('/getreviewsforhomelandingpage',getReviewsForHome);
+userRoute.get('/activeoffersforhomelandingpage',activeOffers);
+//shop
+userRoute.get("/getproductdatalandingpage",getProductData);
+userRoute.get("/getactiveofferslandingpage",getActiveOffers);
+//productlist
+userRoute.get("/getcartdatalandingpage/:id",getCartData)
+userRoute.post("/addtocartlandingpage",checkUserBlock,addToCart)
+//filter
+userRoute.get('/getcategorynameslandingpage',getCategoryName)
+userRoute.get('/producttypeslandingpage',productTypes)
+userRoute.get('/productsfilterlandingpage',productFilter)
+//search
+userRoute.get('/searchlandingpage',searchProducts)
+//product-view
+userRoute.get("/product-viewlandingpage/:id",getSingleProductData);
+userRoute.get("/related-productslandingpage/:categoryId/:productId",getRelatedProducts)
 module.exports = userRoute

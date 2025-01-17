@@ -154,7 +154,10 @@ const activeOffers = async(req,res)=>{
     const activeOffer = await Offer.findOne({
       startDate: { $lte: currentDate },
       endDate: { $gte: currentDate }
-    }).populate('targetId'); 
+    }).populate({
+      path: 'targetId',
+      select: 'title name' 
+    });
 
     if (!activeOffer) {
       return res.status(200).json({

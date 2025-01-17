@@ -1076,7 +1076,6 @@ const approveReturnRequest = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
 
-        if (order.paymentInfo.method !== 'cod') {
             const productPrice = order.totalPrice / order.products.length;
             const refundAmount = productPrice - (order.discountAmount / order.products.length);
 
@@ -1093,12 +1092,12 @@ const approveReturnRequest = async (req, res) => {
                 amount: refundAmount,
                 balance: newBalance
             });
-        }
+
 
         return res.json({ 
             success: true, 
             message: 'Return request approved successfully',
-            refunded: order.paymentInfo.method !== 'cod'
+            // refunded: order.paymentInfo.method !== 'cod'
         });
 
     } catch(error) {
