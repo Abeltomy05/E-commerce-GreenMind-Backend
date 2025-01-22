@@ -313,8 +313,10 @@ const razorpayPlaceOrder = async(req,res)=>{
             totalPrice,
             paymentMethod,
             couponCode = null,
-            paymentDetails = null
+            paymentDetails = null,
+            paymentStatus = 'PENDING'
         } = req.body;
+        console.log("failure payment",req.body)
 
         if (!userId || !products || !products.length || !addressId || !totalPrice || !paymentMethod) {
             return res.status(400).json({
@@ -356,15 +358,7 @@ const razorpayPlaceOrder = async(req,res)=>{
                 });
             }
 
-            await Product.updateOne(
-                { 
-                    _id: product._id,
-                    "variants.size": item.size
-                },
-                { 
-                    $inc: { "variants.$.stock": -item.quantity }
-                }
-            );
+          
             
             orderProducts.push({
                 product: item.product,
@@ -372,7 +366,7 @@ const razorpayPlaceOrder = async(req,res)=>{
                 size: item.size
             });
             
-            if (item.cartItemId) {
+            if (item.cartItemId && paymentStatus !== 'FAILED') {
                 cartItemsToDelete.push(item.cartItemId);
             }
         }
@@ -401,13 +395,26 @@ const razorpayPlaceOrder = async(req,res)=>{
             paymentInfo: {
                 method: paymentMethod,
                 transactionId: paymentDetails?.paymentId || null,
-                status: 'PENDING'
+                status: paymentStatus 
             },
             couponApplied: couponId,
             expectedDeliveryDate
         });
 
         await order.save();
+
+        if (paymentStatus !== 'FAILED') {
+            for (const item of products) {
+                await Product.updateOne(
+                    { 
+                        _id: item.product,
+                        "variants.size": item.size
+                    },
+                    { 
+                        $inc: { "variants.$.stock": -item.quantity }
+                    }
+                );
+            }
 
      
         if (cartItemsToDelete.length > 0) {
@@ -416,10 +423,11 @@ const razorpayPlaceOrder = async(req,res)=>{
                 user: userId
             });
         }
+    }
 
         res.status(200).json({
             success: true,
-            message: 'Order placed successfully',
+            message:  paymentStatus === 'FAILED' ? 'Order saved with failed status' : 'Order placed successfully',
             orderId: order._id,
             orderDetails: order
         });
@@ -650,13 +658,40 @@ const getSingleOrderDetail = async(req,res)=>{
 const cancelOrder = async(req,res)=>{
     try{
         const orderId  = req.params.id;
-        const order = await Order.findById(orderId);
+        const order = await Order.findById(orderId)
+            .populate({
+                path: 'products.product'
+            });
+
         if (!order) {
             return res.status(404).json({
                 success: false,
                 message: 'Order not found'
             });
         }
+
+        const updatePromises = order.products.map(async (orderProduct) => {
+            const product = await Product.findById(orderProduct.product._id);
+            
+            if (!product) {
+                throw new Error(`Product ${orderProduct.product._id} not found`);
+            }
+
+             const orderedVariant = product.variants.find(
+                variant => variant.price === orderProduct.product.variants[0].price
+            );
+
+            if (!orderedVariant) {
+                throw new Error(`Matching variant not found for product ${product._id}`);
+            }
+
+            orderedVariant.stock += orderProduct.quantity;
+            return product.save();
+        });
+
+        await Promise.all(updatePromises);
+
+
         const updatedOrder = await Order.findByIdAndUpdate(
             orderId,
            {

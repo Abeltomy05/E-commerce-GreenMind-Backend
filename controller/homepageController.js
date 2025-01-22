@@ -114,26 +114,34 @@ const categoryImage = async(req,res)=>{
 }
 
 
-const getReviewsForHome = async(req,res)=>{
+const getReviewsForHome = async (req, res) => {
   try {
-    const orders = await Order.find({
-      'rating.stars': { $gt: 3 },
-      'rating.feedback': { $exists: true, $ne: null }
-    })
-    .populate('user', 'firstname lastname profileImage')
-    .select('rating user')
-    .sort({ createdAt: -1 });
 
-    const reviews = orders.map(order => ({
-      id: order._id,
-      name: `${order.user.firstname} ${order.user.lastname}`,
-      feedback: order.rating.feedback,
-      rating: order.rating.stars,
-      profileImage: order.user.profileImage,
-      createdAt: order.createdAt 
-    }));
+    const orders = await Order.find({
+      'rating.stars': { $exists: true, $gt: 0 },  
+      'rating.feedback': { $exists: true, $ne: '' } 
+    })
+    .populate({
+      path: 'user',
+      select: 'firstname lastname profileImage',
+      match: { isDeleted: { $ne: true } }  
+    })
+    .select('rating user createdAt')
+    .sort({ 'rating.createdAt': -1 })
+    .limit(10);  
 
     
+    const validOrders = orders.filter(order => order.user);
+
+    const reviews = validOrders.map(order => ({
+      id: order._id,
+      name: order.user ? `${order.user.firstname} ${order.user.lastname}` : 'Anonymous',
+      feedback: order.rating.feedback,
+      rating: order.rating.stars,
+      profileImage: order.user?.profileImage || null,
+      createdAt: order.rating.createdAt || order.createdAt
+    }));
+
     res.json({
       status: 'success',
       data: reviews
@@ -142,10 +150,11 @@ const getReviewsForHome = async(req,res)=>{
     console.error('Error in getReviewsForHome:', error);
     res.status(500).json({ 
       status: 'error',
-      message: 'Error fetching reviews' 
+      message: 'Error fetching reviews',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
-}
+};
 
 const activeOffers = async(req,res)=>{
   try {

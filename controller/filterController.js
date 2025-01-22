@@ -4,6 +4,7 @@ const Product = require("../model/productModel")
 const Category = require("../model/categoryModel")
 const User = require('../model/userModel')
 const Cart = require('../model/cartModel')
+const Offer = require('../model/offerModel')
 
 const getCategoryName = async(req,res)=>{
     try{
@@ -25,11 +26,13 @@ const productTypes = async(req,res)=>{
 }
 
 const productFilter = async(req,res)=>{
-     try{
-        const { category, type, priceSort, nameSort  } = req.query;
+    try {
+        const { category, type, priceSort, nameSort } = req.query;
+        const currentDate = new Date();
 
         let query = { isDeleted: false };
 
+        // Handle category filter
         if (category) {
             const categoryNames = category.split(',');
             const categoryDocs = await Category.find({ 
@@ -41,6 +44,7 @@ const productFilter = async(req,res)=>{
             }
         }
 
+        // Handle type filter
         if (type) {
             const types = type.split(',');
             query.type = { $in: types };
@@ -48,7 +52,7 @@ const productFilter = async(req,res)=>{
       
         let pipeline = [
             { $match: query },
-
+            // Lookup category
             {
                 $lookup: {
                     from: 'categories',
@@ -59,39 +63,100 @@ const productFilter = async(req,res)=>{
             },
             { $unwind: '$category' },
             // Only include products with active categories
-            { $match: { 'category.isActive': true } }
+            { $match: { 'category.isActive': true } },
+            // Lookup current offer
+            {
+                $lookup: {
+                    from: 'offers',
+                    localField: 'currentOffer',
+                    foreignField: '_id',
+                    as: 'offer'
+                }
+            },
+            { $unwind: { path: '$offer', preserveNullAndEmptyArrays: true } }
         ];
 
-        if (priceSort || nameSort) {
-            let sortStage = {};
-            
-            if (priceSort) {
-                pipeline.push({
-                    $addFields: {
-                        minPrice: { 
-                            $min: {
-                                $map: {
-                                    input: '$variants',
-                                    as: 'variant',
-                                    in: '$$variant.price'
-                                }
+        if (priceSort) {
+            // Calculate minimum price considering offers
+            pipeline.push({
+                $addFields: {
+                    minRegularPrice: { 
+                        $min: {
+                            $map: {
+                                input: '$variants',
+                                as: 'variant',
+                                in: '$$variant.price'
                             }
                         }
+                    },
+                    hasValidOffer: {
+                        $and: [
+                            { $ifNull: ['$offer', false] },
+                            { $lt: ['$offer.startDate', currentDate] },
+                            { $gt: ['$offer.endDate', currentDate] }
+                        ]
                     }
-                });
-                sortStage.minPrice = priceSort === 'lowToHigh' ? 1 : -1;
-            }
-            
-            if (nameSort) {
-                sortStage.name = nameSort === 'aToZ' ? 1 : -1;
-            }
+                }
+            });
 
-            pipeline.push({ $sort: sortStage });
+            // Calculate discounted price based on offer type
+            pipeline.push({
+                $addFields: {
+                    minEffectivePrice: {
+                        $cond: {
+                            if: '$hasValidOffer',
+                            then: {
+                                $let: {
+                                    vars: {
+                                        discountedPrice: {
+                                            $cond: {
+                                                if: { $eq: ['$offer.discountType', 'PERCENTAGE'] },
+                                                then: {
+                                                    $multiply: [
+                                                        '$minRegularPrice',
+                                                        { $subtract: [1, { $divide: ['$offer.discountValue', 100] }] }
+                                                    ]
+                                                },
+                                                else: { $subtract: ['$minRegularPrice', '$offer.discountValue'] }
+                                            }
+                                        }
+                                    },
+                                    in: {
+                                        $cond: {
+                                            if: { $and: [
+                                                { $ifNull: ['$offer.maxDiscountAmount', false] },
+                                                { $gt: [{ $subtract: ['$minRegularPrice', '$$discountedPrice'] }, '$offer.maxDiscountAmount'] }
+                                            ]},
+                                            then: { $subtract: ['$minRegularPrice', '$offer.maxDiscountAmount'] },
+                                            else: '$$discountedPrice'
+                                        }
+                                    }
+                                }
+                            },
+                            else: '$minRegularPrice'
+                        }
+                    }
+                }
+            });
+
+            // Sort by effective price
+            pipeline.push({
+                $sort: {
+                    minEffectivePrice: priceSort === 'lowToHigh' ? 1 : -1
+                }
+            });
         }
 
+        // Handle name sort
+        if (nameSort) {
+            pipeline.push({
+                $sort: {
+                    name: nameSort === 'aToZ' ? 1 : -1
+                }
+            });
+        }
 
-        
-
+        // Project final fields
         pipeline.push({
             $project: {
                 _id: 1,
@@ -101,7 +166,10 @@ const productFilter = async(req,res)=>{
                 images: 1,
                 description: 1,
                 variants: 1,
-                category: 1 
+                category: 1,
+                currentOffer: 1,
+                offer: 1,
+                minEffectivePrice: 1
             }
         });
 
@@ -113,15 +181,14 @@ const productFilter = async(req,res)=>{
             data: products
         });
 
-
-     }catch(error){
+    } catch(error) {
         console.error('Error in filterProducts:', error);
         return res.status(500).json({
             success: false,
             message: 'Error fetching products',
             error: error.message
         });
-     }
+    }
 }
 
 module.exports={

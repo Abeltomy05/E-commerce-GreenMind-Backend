@@ -50,7 +50,7 @@ paymentInfo: {
    },
    status: {
     type: String,
-    enum: ['PENDING', 'CONFIRMED', 'CANCELED', 'DELIVERED','ON THE ROAD'],
+    enum: ['FAILED','PENDING', 'CONFIRMED', 'CANCELED', 'DELIVERED','ON THE ROAD'],
     default: 'PENDING'
     }
   },
