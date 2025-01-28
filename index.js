@@ -88,7 +88,7 @@ const corsOptions = {
   
   app.use(cors(corsOptions));
 
-  mongoose.connect("mongodb://localhost:27017/USM_PROJECT")
+  mongoose.connect(process.env.MONGODB_URI)
    .then(()=>{
     console.log(`MongoDB connected successfully to ${mongoose.connection.name}`)
    })
