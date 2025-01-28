@@ -46,6 +46,7 @@ userRoute.get("/orderdetails/:id",verifyJWT,getSingleOrderDetail)
 userRoute.post("/cancelorder/:id",verifyJWT,cancelOrder)
 userRoute.post('/calculateOrderAmount',verifyJWT,orderAmount)
 userRoute.post('/razorpayplaceorder',verifyJWT,razorpayPlaceOrder)
+// userRoute.post('/razorpayplaceorderforfailedpayment',verifyJWT,razorpayPlaceOrderForFailedPayment)
 //filter
 userRoute.get('/getcategorynames',verifyJWT,getCategoryName)
 userRoute.get('/producttypes',verifyJWT,productTypes)

@@ -13,6 +13,10 @@ products: [{
         ref: 'product',
         required: true
     },
+    variantSize: {
+      type: String,
+      required: true
+  },
     quantity: {
         type: Number,
         required: true,
@@ -52,6 +56,9 @@ paymentInfo: {
     type: String,
     enum: ['FAILED','PENDING', 'CONFIRMED', 'CANCELED', 'DELIVERED','ON THE ROAD'],
     default: 'PENDING'
+    },
+    cancellationReason: {  
+      type: String
     }
   },
 couponApplied: {

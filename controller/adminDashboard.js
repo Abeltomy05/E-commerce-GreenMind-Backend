@@ -18,21 +18,66 @@ const getOrders = async (req, res) => {
         }
       };
 
-     let orders = await Order.find(query)
-        .populate('user', '_id firstname lastname')
-        .populate({
+      let orders = await Order.find(query)
+      .populate('user', '_id firstname lastname')
+      .populate({
           path: 'products.product',
-          select: 'name variants category',
-          populate: {
-            path: 'category',
-            select: 'name'
-          }
-        })
-        .lean();
+          select: 'name variants category currentOffer',
+          populate: [{
+              path: 'category',
+              select: 'name'
+          }, {
+              path: 'currentOffer',
+              select: 'discountPercentage'
+          }]
+      })
+      .populate('couponApplied', 'discountPercentage maxDiscount')
+      .lean();
   
-        orders = orders
-        .filter(order => !order.products.some(p => p.returnStatus?.isReturned))
-        .filter(order => order.products.every(p => p.product));
+      orders = orders
+      .filter(order => !order.products.some(p => p.returnStatus?.isReturned))
+      .filter(order => order.products.every(p => p.product))
+      .map(order => {
+          const originalTotal = order.products.reduce((sum, product) => {
+              const variant = product.product.variants.find(v => v.size === product.variantSize);
+              if (!variant) return sum;
+              return sum + (variant.price * product.quantity);
+          }, 0);
+
+          const totalWithShipping = originalTotal + (order.shippingFee || 0);
+
+          let productDiscounts = order.products.reduce((sum, product) => {
+              const variant = product.product.variants.find(v => v.size === product.variantSize);
+              if (!variant) return sum;
+              
+              const offerDiscount = product.product.currentOffer?.discountPercentage || 0;
+              const discountAmount = (variant.price * offerDiscount / 100) * product.quantity;
+              return sum + discountAmount;
+          }, 0);
+
+          let couponDiscount = 0;
+          if (order.couponApplied) {
+              const discountAmount = (originalTotal * order.couponApplied.discountPercentage / 100);
+              couponDiscount = Math.min(discountAmount, order.couponApplied.maxDiscount || discountAmount);
+          }
+
+          const totalDiscount = productDiscounts + couponDiscount;
+
+          const calculatedFinalPrice = totalWithShipping - totalDiscount;
+          const actualTotalPrice = order.totalPrice;
+
+          const additionalDiscount = Math.max(0, calculatedFinalPrice - actualTotalPrice);
+          const finalTotalDiscount = totalDiscount + additionalDiscount;
+
+          return {
+              ...order,
+              products: order.products.map(product => ({
+                  ...product,
+                  variant: product.product.variants.find(v => v.size === product.variantSize)
+              })),
+              discountAmount: Number(finalTotalDiscount.toFixed(2))
+          };
+      });
 
         res.json(orders);
 

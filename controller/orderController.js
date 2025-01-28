@@ -314,9 +314,12 @@ const razorpayPlaceOrder = async(req,res)=>{
             paymentMethod,
             couponCode = null,
             paymentDetails = null,
-            paymentStatus = 'PENDING'
+            paymentStatus = 'PENDING',
+            orderId = null,
+            isRetry = false,
+            errorDetails = null
         } = req.body;
-        console.log("failure payment",req.body)
+
 
         if (!userId || !products || !products.length || !addressId || !totalPrice || !paymentMethod) {
             return res.status(400).json({
@@ -363,7 +366,7 @@ const razorpayPlaceOrder = async(req,res)=>{
             orderProducts.push({
                 product: item.product,
                 quantity: item.quantity,
-                size: item.size
+                variantSize: item.size
             });
             
             if (item.cartItemId && paymentStatus !== 'FAILED') {
@@ -387,21 +390,45 @@ const razorpayPlaceOrder = async(req,res)=>{
         expectedDeliveryDate.setDate(expectedDeliveryDate.getDate() + 7);
 
    
-        const order = new Order({
-            user: userId,
-            products: orderProducts,
-            address: addressId,
-            totalPrice: totalPrice,
-            paymentInfo: {
-                method: paymentMethod,
-                transactionId: paymentDetails?.paymentId || null,
-                status: paymentStatus 
-            },
-            couponApplied: couponId,
-            expectedDeliveryDate
-        });
+        let order;
+        if (orderId) {
+            order = await Order.findByIdAndUpdate(orderId, {
+                products: orderProducts,
+                address: addressId,
+                totalPrice: totalPrice,
+                paymentInfo: {
+                    method: paymentMethod,
+                    transactionId: paymentDetails?.paymentId || null,
+                    status: paymentStatus 
+                },
+                couponApplied: couponId,
+                expectedDeliveryDate,
+                ...(errorDetails && { failureDetails: errorDetails })
+            }, { new: true });
 
-        await order.save();
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+        } else {
+            order = new Order({
+                user: userId,
+                products: orderProducts,
+                address: addressId,
+                totalPrice: totalPrice,
+                paymentInfo: {
+                    method: paymentMethod,
+                    transactionId: paymentDetails?.paymentId || null,
+                    status: paymentStatus 
+                },
+                couponApplied: couponId,
+                expectedDeliveryDate
+            });
+            await order.save();
+        }
 
         if (paymentStatus !== 'FAILED') {
             for (const item of products) {
@@ -433,14 +460,186 @@ const razorpayPlaceOrder = async(req,res)=>{
         });
 
     } catch(error) {
-        console.error('Order placement error:', error);
+        console.error('Order placement detailed error:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
         res.status(500).json({
             success: false,
             message: 'Failed to place order',
-            error: error.message
+            errorType: error.name,
+            errorDetails: error.message
         });
     }
 };
+
+// const razorpayPlaceOrderForFailedPayment = async(req,res)=>{
+//     try {
+//         const {
+//             userId,
+//             products,
+//             addressId,
+//             totalPrice,
+//             paymentMethod,
+//             couponCode = null,
+//             paymentDetails = null,
+//             paymentStatus = 'PENDING',
+//             orderId = null
+//         } = req.body;
+
+
+//         if (!userId || !products || !products.length || !addressId || !totalPrice || !paymentMethod) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: 'Missing required fields'
+//             });
+//         }
+
+//         const address = await Address.findOne({
+//             _id: addressId,
+//             user: userId
+//         });
+
+//         if (!address) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: 'Shipping address not found'
+//             });
+//         }
+
+//         const orderProducts = [];
+//         const cartItemsToDelete = [];
+
+
+//         for (const item of products) {
+//             const product = await Product.findById(item.product);
+//             if (!product || product.isDeleted) {
+//                 return res.status(404).json({
+//                     success: false,
+//                     message: `Product not found: ${item.product}`
+//                 });
+//             }
+
+//             const variant = product.variants.find(v => v.size === item.size);
+//             if (!variant) {
+//                 return res.status(400).json({
+//                     success: false,
+//                     message: `Size ${item.size} not found for product ${product.name}`
+//                 });
+//             }
+
+          
+            
+//             orderProducts.push({
+//                 product: item.product,
+//                 quantity: item.quantity,
+//                 variantSize: item.size
+//             });
+            
+//             if (item.cartItemId && paymentStatus !== 'FAILED') {
+//                 cartItemsToDelete.push(item.cartItemId);
+//             }
+//         }
+
+//         let couponId = null;
+//         if (couponCode) {
+//             const coupon = await Coupon.findOne({ 
+//                 code: couponCode,
+//                 startDate: { $lte: new Date() },
+//                 expiryDate: { $gte: new Date() }
+//             });
+//             if (coupon) {
+//                 couponId = coupon._id;
+//             }
+//         }
+
+//         const expectedDeliveryDate = new Date();
+//         expectedDeliveryDate.setDate(expectedDeliveryDate.getDate() + 7);
+
+   
+//         let order;
+//         if (orderId) {
+//             order = await Order.findByIdAndUpdate(orderId, {
+//                 products: orderProducts,
+//                 address: addressId,
+//                 totalPrice: totalPrice,
+//                 paymentInfo: {
+//                     method: paymentMethod,
+//                     transactionId: paymentDetails?.paymentId || null,
+//                     status: paymentStatus 
+//                 },
+//                 couponApplied: couponId,
+//                 expectedDeliveryDate
+//             }, { new: true });
+
+//             if (!order) {
+//                 return res.status(404).json({
+//                     success: false,
+//                     message: 'Order not found'
+//                 });
+//             }
+
+//         } else {
+//             order = new Order({
+//                 user: userId,
+//                 products: orderProducts,
+//                 address: addressId,
+//                 totalPrice: totalPrice,
+//                 paymentInfo: {
+//                     method: paymentMethod,
+//                     transactionId: paymentDetails?.paymentId || null,
+//                     status: paymentStatus 
+//                 },
+//                 couponApplied: couponId,
+//                 expectedDeliveryDate
+//             });
+//             await order.save();
+//         }
+
+//         if (paymentStatus !== 'FAILED') {
+//             for (const item of products) {
+//                 await Product.updateOne(
+//                     { 
+//                         _id: item.product,
+//                         "variants.size": item.size
+//                     },
+//                     { 
+//                         $inc: { "variants.$.stock": -item.quantity }
+//                     }
+//                 );
+//             }
+
+     
+//         if (cartItemsToDelete.length > 0) {
+//             await Cart.deleteMany({
+//                 _id: { $in: cartItemsToDelete },
+//                 user: userId
+//             });
+//         }
+//     }
+
+//         res.status(200).json({
+//             success: true,
+//             message:  paymentStatus === 'FAILED' ? 'Order saved with failed status' : 'Order placed successfully',
+//             orderId: order._id,
+//             orderDetails: order
+//         });
+
+//     } catch(error) {
+//         console.error('Order placement detailed error:', {
+//             message: error.message,
+//             stack: error.stack,
+//             name: error.name
+//         });
+//         res.status(500).json({
+//             success: false,
+//             message: 'Failed to place order',
+//             errorType: error.name,
+//             errorDetails: error.message
+//         });
+//     }
+// };
 
 const getOrderData = async(req,res)=>{
     try{
@@ -531,7 +730,7 @@ const getSingleOrderDetail = async(req,res)=>{
             .populate({
                 path: 'address',
                 model: 'Address',
-                select: 'fullName Address city state district country pincode phone'
+                select: '_id fullName Address city state district country pincode phone'
             })
             .populate({
                 path: 'couponApplied',
@@ -548,7 +747,10 @@ const getSingleOrderDetail = async(req,res)=>{
        }
 
        const products = order.products.map(item => {
-        const basePrice = item.product?.variants?.[0]?.price || 0;
+        const selectedVariant = item.product?.variants?.find(variant => 
+            variant.size.toLowerCase() === item.variantSize?.toLowerCase()
+        );
+        const basePrice = selectedVariant?.price || 0;
         let finalPrice = basePrice;
         let offerDiscount = 0;
 
@@ -580,7 +782,8 @@ const getSingleOrderDetail = async(req,res)=>{
             finalPrice: finalPrice,
             type: item.product?.type,
             brand: item.product?.brand,
-            offerDiscount: offerDiscount * item.quantity
+            offerDiscount: offerDiscount * item.quantity,
+            variantSize: item.variantSize
         };
     });
 
@@ -607,6 +810,7 @@ const getSingleOrderDetail = async(req,res)=>{
         _id: order._id,
         products: products,
         address: order.address ? {
+            _id: order.address._id,
             name: order.address.fullName || 'Not Provided',
             address: `${order.address.Address || ''}, ${order.address.district || ''}, ${order.address.city || ''}, ${order.address.state || ''} - ${order.address.pincode || ''}`.trim(),
             phone: order.address.phone || '',
@@ -658,6 +862,15 @@ const getSingleOrderDetail = async(req,res)=>{
 const cancelOrder = async(req,res)=>{
     try{
         const orderId  = req.params.id;
+        const { cancellationReason } = req.body;
+
+        if (!cancellationReason || cancellationReason.trim().length < 10) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a valid cancellation reason (minimum 10 characters)'
+            });
+        }
+
         const order = await Order.findById(orderId)
             .populate({
                 path: 'products.product'
@@ -678,11 +891,11 @@ const cancelOrder = async(req,res)=>{
             }
 
              const orderedVariant = product.variants.find(
-                variant => variant.price === orderProduct.product.variants[0].price
+                variant => variant.size === orderProduct.variantSize
             );
 
             if (!orderedVariant) {
-                throw new Error(`Matching variant not found for product ${product._id}`);
+                throw new Error(`Variant with size ${orderProduct.variantSize} not found for product ${product._id}`);
             }
 
             orderedVariant.stock += orderProduct.quantity;
@@ -697,6 +910,7 @@ const cancelOrder = async(req,res)=>{
            {
             $set: {
                 'paymentInfo.status': 'CANCELED',
+                'paymentInfo.cancellationReason': cancellationReason,
                 updatedAt: new Date()
                  }
             },
@@ -1203,5 +1417,5 @@ module.exports = {
     handleReturnRequest,
     getReturnRequests,
     approveReturnRequest,
-    rateOrder
+    rateOrder,
 }
