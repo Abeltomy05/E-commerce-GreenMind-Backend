@@ -101,9 +101,7 @@ const corsOptions = {
    app.use("/auth",authRoute)
    app.use("/payment",paymentRoute)
 
-   app.get("/", (req, res) => {
-    res.send("Welcome to GreenMind Backend");
-  });
+
    app.listen("3000","0.0.0.0", ()=>{
     console.log("server started");
    })
