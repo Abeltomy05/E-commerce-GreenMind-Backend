@@ -41,7 +41,7 @@ const generateRefreshToken = (user) => {
 
 authRoute.get("/google/callback", 
   passport.authenticate("google", {
-    failureRedirect: "http://localhost:5173/user/login",
+    failureRedirect: "https://abeltomy.site/user/login",
     session: true 
   }),
   async (req, res) => {
@@ -70,10 +70,10 @@ authRoute.get("/google/callback",
         path: '/'
       });
       console.log('Google auth successful, redirecting to home')
-      res.redirect("http://localhost:5173/user/home");
+      res.redirect("https://abeltomy.site/user/home");
     } catch (error) {
       console.error("Google callback error:", error);
-      res.redirect("http://localhost:5173/user/login");
+      res.redirect("https://abeltomy.site/user/login");
     }
   }
 );
