@@ -56,16 +56,18 @@ authRoute.get("/google/callback",
 
       res.cookie('accessToken', accessToken, {
         httpOnly: false,
-        secure: false,
+        secure: true,
         sameSite: 'lax',
+        domain: 'abeltomy.site',
         maxAge: 15 * 60 * 1000,
         path: '/'
       });
 
       res.cookie('refreshToken', refreshToken, {
         httpOnly: false,
-        secure: false,
+        secure: true,
         sameSite: 'lax',
+        domain: 'abeltomy.site',
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/'
       });
