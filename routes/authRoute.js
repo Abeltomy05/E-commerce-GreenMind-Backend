@@ -134,16 +134,18 @@ authRoute.get("/login/success", (req, res) => {
       }
 
       res.clearCookie('accessToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        httpOnly: false,
+        secure: true,
         sameSite: 'lax',
+        domain: 'abeltomy.site',
         path: '/'
       });
       
       res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        httpOnly: false,
+        secure: true,
         sameSite: 'lax',
+        domain: 'abeltomy.site',
         path: '/'
       });
 
