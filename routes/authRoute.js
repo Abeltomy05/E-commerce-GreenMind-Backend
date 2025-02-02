@@ -14,7 +14,7 @@ const generateAccessToken = (user) => {
             firstname:user.firstname,
             username:user.username,
         }, 
-        process.env.ACCESS_TOKEN_SECRET, 
+        process.env.ACCESS_TOKEN_SECRET_USER, 
         { expiresIn: '1m' }
     );
 };
@@ -24,7 +24,7 @@ const generateRefreshToken = (user) => {
         { 
             _id: user._id, 
         }, 
-        process.env.REFRESH_TOKEN_SECRET, 
+        process.env.REFRESH_TOKEN_SECRET_USER, 
         { expiresIn: '7d' }
     );
 };

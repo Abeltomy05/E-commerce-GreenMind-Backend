@@ -12,7 +12,7 @@ const generateAccessToken = (user) => {
             userId: user._id, 
             email: user.email 
         }, 
-        process.env.ACCESS_TOKEN_SECRET, 
+        process.env.ACCESS_TOKEN_SECRET_ADMIN, 
         { expiresIn: '15m' }
     );
 };
@@ -23,7 +23,7 @@ const generateRefreshToken = (user) => {
             userId: user._id, 
             email: user.email 
         }, 
-        process.env.REFRESH_TOKEN_SECRET, 
+        process.env.REFRESH_TOKEN_SECRET_ADMIN, 
         { expiresIn: '7d' }
     );
 };
@@ -36,7 +36,7 @@ const refreshToken = async (req, res) => {
         return res.status(401).json({ message: "No refresh token provided" });
       }
   
-      jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
+      jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET_ADMIN, async (err, decoded) => {
         if (err) {
           return res.status(403).json({ message: "Invalid refresh token" });
         }

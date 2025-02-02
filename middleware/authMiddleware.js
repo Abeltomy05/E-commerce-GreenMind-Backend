@@ -17,7 +17,7 @@ const verifyJWT = async(req, res, next) => {
     });
   }
 
-  const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+  const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_USER);
   const user = await User.findById(decoded?._id).select('-password -refreshToken').lean();
 
   if(!user){
@@ -57,7 +57,7 @@ const verifyAdmin = async (req, res, next) => {
       return res.status(401).json({ message: "No access token provided" });
     }
 
-    jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET, async (err, decoded) => {
+    jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET_ADMIN, async (err, decoded) => {
       if (err) {
         return res.status(401).json({ message: "Invalid or expired token" });
       }

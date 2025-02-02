@@ -32,7 +32,7 @@ const generateAccessToken = (user) => {
             firstname:user.firstname,
             username:user.username,
         }, 
-        process.env.ACCESS_TOKEN_SECRET, 
+        process.env.ACCESS_TOKEN_SECRET_USER, 
         { expiresIn: '1m' }
     );
 };
@@ -42,7 +42,7 @@ const generateRefreshToken = (user) => {
         { 
             _id: user._id, 
         }, 
-        process.env.REFRESH_TOKEN_SECRET, 
+        process.env.REFRESH_TOKEN_SECRET_USER, 
         { expiresIn: '7d' }
     );
 };
@@ -56,7 +56,7 @@ const refreshAccessToken = async (req, res) => {
   
       // Verify refresh token
       try{
-        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET_USER);
         const user = await User.findById(decoded?._id);
 
         if (!user) {
