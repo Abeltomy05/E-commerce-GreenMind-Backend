@@ -218,30 +218,29 @@ const isBlock = async(req,res)=>{
 
 const logoutAdmin = async (req, res) => {
   try {
-      if (req.user?.userId) {
-          await User.updateOne(
-              { _id: req.user.userId },
-              { $unset: { refreshToken: "" } }
-          );
-      }
+    await User.updateOne(
+      { refreshToken: { $exists: true } }, 
+      { $unset: { refreshToken: "" } }
+    );
 
-      // Clear cookies
-      res.clearCookie('accessToken', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict'
-      });
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/' 
+    });
 
-      res.clearCookie('refreshToken', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict'
-      });
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/' 
+    });
 
-      res.json({ success: true, message: 'Logged out successfully' });
+    res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
-      console.error('Logout error:', error);
-      res.status(500).json({ success: false, message: 'Error during logout' });
+    console.error('Logout error:', error);
+    res.status(500).json({ success: false, message: 'Error during logout' });
   }
 };
 
