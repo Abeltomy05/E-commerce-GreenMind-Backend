@@ -59,17 +59,21 @@ const refreshToken = async (req, res) => {
         );
 
         res.cookie('admin_access_token', newAccessToken, {
-          httpOnly: true,
+          httpOnly: false,  
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          maxAge: 15 * 60 * 1000 // 15 minutes
+          sameSite: 'lax',
+          maxAge: 15 * 60 * 1000,
+          domain: "abeltomy.site",
+          path: '/' 
         });
   
         res.cookie('admin_refresh_token', newRefreshToken, {
-          httpOnly: true,
+          httpOnly: false,  
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          domain: "abeltomy.site",
+          path: '/' 
         });
   
         res.json({ message: "Tokens refreshed successfully" });
@@ -96,17 +100,21 @@ const adminLogin =async (req,res)=>{
                   });
 
                   res.cookie('admin_access_token', accessToken, {
-                    httpOnly: true,  
-                    secure: false, 
-                    sameSite: 'strict', 
-                    maxAge: 15 * 60 * 1000 //15 Min
+                    httpOnly: false,  
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'lax',
+                    maxAge: 15 * 60 * 1000,
+                    domain: "abeltomy.site",
+                    path: '/'
                   });
     
                   res.cookie('admin_refresh_token', refreshToken, {
-                    httpOnly: true,
-                    secure: false,
-                    sameSite: 'strict',
-                    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+                    httpOnly: false,  
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'lax',
+                    maxAge: 7 * 24 * 60 * 60 * 1000,
+                    domain: "abeltomy.site",
+                    path: '/'
                   });
                   
                    res.json({
@@ -224,16 +232,18 @@ const logoutAdmin = async (req, res) => {
     );
 
     res.clearCookie('admin_access_token', {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
+      domain: 'abeltomy.site',
       path: '/' 
     });
 
     res.clearCookie('admin_refresh_token', {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
+      domain: 'abeltomy.site',
       path: '/' 
     });
 

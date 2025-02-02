@@ -56,7 +56,7 @@ authRoute.get("/google/callback",
 
       res.cookie('user_access_token', accessToken, {
         httpOnly: false,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         domain: 'abeltomy.site',
         maxAge: 15 * 60 * 1000,
@@ -65,7 +65,7 @@ authRoute.get("/google/callback",
 
       res.cookie('user_refresh_token', refreshToken, {
         httpOnly: false,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         domain: 'abeltomy.site',
         maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -135,7 +135,7 @@ authRoute.get("/login/success", (req, res) => {
 
       res.clearCookie('user_access_token', {
         httpOnly: false,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         domain: 'abeltomy.site',
         path: '/'
@@ -143,7 +143,7 @@ authRoute.get("/login/success", (req, res) => {
       
       res.clearCookie('user_refresh_token', {
         httpOnly: false,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         domain: 'abeltomy.site',
         path: '/'
