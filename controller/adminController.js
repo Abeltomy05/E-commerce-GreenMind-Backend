@@ -58,14 +58,14 @@ const refreshToken = async (req, res) => {
           { refreshToken: newRefreshToken }
         );
 
-        res.cookie('accessToken', newAccessToken, {
+        res.cookie('admin_access_token', newAccessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
           maxAge: 15 * 60 * 1000 // 15 minutes
         });
   
-        res.cookie('refreshToken', newRefreshToken, {
+        res.cookie('admin_refresh_token', newRefreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
@@ -95,14 +95,14 @@ const adminLogin =async (req,res)=>{
                     refreshToken: refreshToken 
                   });
 
-                  res.cookie('accessToken', accessToken, {
+                  res.cookie('admin_access_token', accessToken, {
                     httpOnly: true,  
                     secure: false, 
                     sameSite: 'strict', 
                     maxAge: 15 * 60 * 1000 //15 Min
                   });
     
-                  res.cookie('refreshToken', refreshToken, {
+                  res.cookie('admin_refresh_token', refreshToken, {
                     httpOnly: true,
                     secure: false,
                     sameSite: 'strict',
@@ -223,14 +223,14 @@ const logoutAdmin = async (req, res) => {
       { $unset: { refreshToken: "" } }
     );
 
-    res.clearCookie('accessToken', {
+    res.clearCookie('admin_access_token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/' 
     });
 
-    res.clearCookie('refreshToken', {
+    res.clearCookie('admin_refresh_token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',

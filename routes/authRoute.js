@@ -54,7 +54,7 @@ authRoute.get("/google/callback",
 
       await User.findByIdAndUpdate(req.user._id, { refreshToken });
 
-      res.cookie('accessToken', accessToken, {
+      res.cookie('user_access_token', accessToken, {
         httpOnly: false,
         secure: true,
         sameSite: 'lax',
@@ -63,7 +63,7 @@ authRoute.get("/google/callback",
         path: '/'
       });
 
-      res.cookie('refreshToken', refreshToken, {
+      res.cookie('user_refresh_token', refreshToken, {
         httpOnly: false,
         secure: true,
         sameSite: 'lax',
@@ -133,7 +133,7 @@ authRoute.get("/login/success", (req, res) => {
         );
       }
 
-      res.clearCookie('accessToken', {
+      res.clearCookie('user_access_token', {
         httpOnly: false,
         secure: true,
         sameSite: 'lax',
@@ -141,7 +141,7 @@ authRoute.get("/login/success", (req, res) => {
         path: '/'
       });
       
-      res.clearCookie('refreshToken', {
+      res.clearCookie('user_refresh_token', {
         httpOnly: false,
         secure: true,
         sameSite: 'lax',

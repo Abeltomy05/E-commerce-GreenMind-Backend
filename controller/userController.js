@@ -70,14 +70,14 @@ const refreshAccessToken = async (req, res) => {
 
         await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
 
-        res.cookie('accessToken', accessToken, {
+        res.cookie('user_access_token', accessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
           maxAge: 1 * 60 * 1000 // 15 minutes
         });
 
-        res.cookie('refreshToken', newRefreshToken, {
+        res.cookie('user_refresh_token', newRefreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
@@ -233,14 +233,14 @@ const verifyOTP = async(req,res)=>{
                    });
                    await UserOTPVerification.deleteMany({userId});
 
-                   res.cookie('accessToken', accessToken, {
+                   res.cookie('user_access_token', accessToken, {
                     httpOnly: true,  
                     secure: false, 
                     sameSite: 'strict', 
                     maxAge: 15 * 60 * 1000 //15 Min
                   });
 
-                  res.cookie('refreshToken', refreshToken, {
+                  res.cookie('user_refresh_token', refreshToken, {
                     httpOnly: true,
                     secure: false,
                     sameSite: 'strict',
@@ -331,7 +331,7 @@ const login = async (req, res) => {
     //   refreshToken: refreshToken.substring(0, 20) + '...'
     // });
 
-    res.cookie('accessToken', accessToken, {
+    res.cookie('user_access_token', accessToken, {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
@@ -339,7 +339,7 @@ const login = async (req, res) => {
       path: '/' 
     });
 
-    res.cookie('refreshToken', refreshToken, {
+    res.cookie('user_refresh_token', refreshToken, {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
@@ -601,13 +601,13 @@ const logout = async (req, res) => {
         { $unset: { refreshToken: 1 } }
       );
       
-      res.clearCookie('accessToken', {
+      res.clearCookie('user_access_token', {
         httpOnly: true,
         secure: false,
         sameSite: 'strict'
       });
   
-      res.clearCookie('refreshToken', {
+      res.clearCookie('user_refresh_token', {
         httpOnly: true,
         secure: false,
         sameSite: 'strict'
