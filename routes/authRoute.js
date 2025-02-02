@@ -15,7 +15,7 @@ const generateAccessToken = (user) => {
             username:user.username,
         }, 
         process.env.ACCESS_TOKEN_SECRET_USER, 
-        { expiresIn: '1m' }
+        { expiresIn: '15m' }
     );
 };
 
@@ -94,11 +94,9 @@ authRoute.get("/login/failed",(req,res)=>{
     })
 })
 
-authRoute.get("/login/success", (req, res) => {
+authRoute.get("/login/success", verifyJWT, async (req, res) => {
+  try {
     if (req.user) {
-      const accessToken = generateAccessToken(req.user);
-      const refreshToken = generateRefreshToken(req.user);
-
       res.status(200).json({
         error: false,
         message: "Successfully Logged In",
@@ -109,9 +107,7 @@ authRoute.get("/login/success", (req, res) => {
           email: req.user.email,
           isGoogleUser: req.user.isGoogleUser,
         },
-        role: 'user',
-        accessToken,
-        refreshToken
+        role: 'user'
       });
     } else {
       res.status(403).json({
@@ -119,13 +115,20 @@ authRoute.get("/login/success", (req, res) => {
         message: "Not Authorized"
       });
     }
-  });
+  } catch (error) {
+    console.error("Login success error:", error);
+    res.status(500).json({
+      error: true,
+      message: "Internal server error"
+    });
+  }
+});
 
 
   
   authRoute.post("/logout",verifyJWT, async(req, res) => {
     try {
-      const token = req.cookies.refreshToken;
+      const token = req.cookies.user_refresh_token;
       if (token) {
         await User.updateOne(
           { refreshToken: token },

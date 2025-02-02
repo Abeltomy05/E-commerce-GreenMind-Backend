@@ -48,7 +48,7 @@ const generateRefreshToken = (user) => {
 };
 
 const refreshAccessToken = async (req, res) => {
-      const refreshToken = req.cookies.refreshToken;
+      const refreshToken = req.cookies.user_refresh_token;
   
       if (!refreshToken) {
         return res.status(401).json({ message: 'No refresh token' });
