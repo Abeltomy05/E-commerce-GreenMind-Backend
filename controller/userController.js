@@ -333,7 +333,7 @@ const login = async (req, res) => {
 
     res.cookie('user_access_token', accessToken, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
       path: '/' 
@@ -341,7 +341,7 @@ const login = async (req, res) => {
 
     res.cookie('user_refresh_token', refreshToken, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
        path: '/'
@@ -358,8 +358,8 @@ const login = async (req, res) => {
         phone: user.phone
       },
       role: "user",
-      accessToken: accessToken,
-      refreshToken: refreshToken
+      // accessToken: accessToken,
+      // refreshToken: refreshToken
     });
 
   } catch (err) {
