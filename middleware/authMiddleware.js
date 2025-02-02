@@ -4,7 +4,8 @@ const User = require('../model/userModel')
 const verifyJWT = async(req, res, next) => {
   try{
 
-  let token = req.cookies.accessToken;
+  let token = req.cookies.user_access_token;
+  console.log("token from cookie:", token);
 
   if (!token) {
     token = req.headers.authorization?.split(' ')[1];
@@ -51,7 +52,7 @@ const verifyJWT = async(req, res, next) => {
   
 const verifyAdmin = async (req, res, next) => {
   try {
-    const accessToken = req.cookies.accessToken;
+    const accessToken = req.cookies.admin_access_token;
 
     if (!accessToken) {
       return res.status(401).json({ message: "No access token provided" });
