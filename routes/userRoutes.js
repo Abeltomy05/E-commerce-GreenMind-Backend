@@ -3,7 +3,7 @@ const userRoute = express.Router();
 const {signup,verifyOTP,resendOTP,refreshAccessToken,login,getProductData,getActiveOffers,getSingleProductData,getUserData,getRelatedProducts} = require("../controller/userController")
 const {getProfiledata,updateUserProfile,changePassword,profileImgUpdate,getAdressOfaUser,setNewAddressForUser,updateAddress,deleteAddress,addAddressInCheckout} = require('../controller/userDashboard')
 const {getCartData,addToCart,getCartDataForCartPage,updateCartItemQuantity,removeCartItem} = require("../controller/cartController")
-const {placeOrder,getOrderData,getSingleOrderDetail,cancelOrder,orderAmount,razorpayPlaceOrder,getOrderForReturn,handleReturnRequest,rateOrder} = require("../controller/orderController")
+const {placeOrder,getOrderData,getSingleOrderDetail,cancelOrder,orderAmount,razorpayPlaceOrder,getOrderForReturn,handleReturnRequest,rateOrder,verifyStock} = require("../controller/orderController")
 const {verifyJWT} = require("../middleware/authMiddleware");
 const {checkUserBlock} = require('../middleware/checkUserBlock')
 const {getCategoryName,productTypes,productFilter} = require('../controller/filterController')
@@ -40,6 +40,7 @@ userRoute.get("/getcartdataforcartpage/:id",verifyJWT,checkUserBlock,getCartData
 userRoute.patch("/updatequantity/:id",verifyJWT,updateCartItemQuantity)
 userRoute.delete("/removecartitem/:id",verifyJWT,removeCartItem)
 //order
+userRoute.post("/verifyStock",verifyJWT,verifyStock)
 userRoute.post("/placeorder",verifyJWT,placeOrder)
 userRoute.get("/getorderdata/:id",verifyJWT,getOrderData)
 userRoute.get("/orderdetails/:id",verifyJWT,getSingleOrderDetail)

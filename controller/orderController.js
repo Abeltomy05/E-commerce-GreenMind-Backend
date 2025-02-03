@@ -9,6 +9,50 @@ const Order = require('../model/orderSchema')
 const Coupon = require('../model/coupenModel')
 const Wallet = require('../model/walletModel')
 
+const verifyStock = async(req,res)=>{
+    try {
+        const { products } = req.body;
+        
+        for (const item of products) {
+          const product = await Product.findById(item.product);
+          
+          if (!product) {
+            return res.status(404).json({
+              success: false,
+              message: 'Product not found'
+            });
+          }
+    
+          const variant = product.variants.find(v => v.size === item.size);
+          
+          if (!variant) {
+            return res.status(404).json({
+              success: false,
+              message: `Size ${item.size} not found for product ${product.name}`
+            });
+          }
+    
+          if (variant.stock < item.quantity) {
+            return res.status(400).json({
+              success: false,
+              message: `Only ${variant.stock} units available for ${product.name} in size ${item.size}`
+            });
+          }
+        }
+    
+        return res.status(200).json({
+          success: true,
+          message: 'All products are in stock'
+        });
+    
+      } catch (error) {
+        console.error('Stock verification error:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error verifying stock'
+        });
+      }
+}
 
 const calculateOrderPricing = async (products, couponCode) => {
     let subtotal = 0;
@@ -1418,4 +1462,5 @@ module.exports = {
     getReturnRequests,
     approveReturnRequest,
     rateOrder,
+    verifyStock
 }
