@@ -7,6 +7,9 @@ const bcrypt = require('bcrypt');
 require("dotenv").config();
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const { config } = require("../utils/config");
+const { generateAccessToken, generateRefreshToken } = require("../utils/helper/jwt.helper");
+const { setAuthCookie, clearAuthCookie } = require("../utils/helper/cookie.helper");
 
 const securePassword = async(password)=>{
     try{
@@ -24,28 +27,6 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-const generateAccessToken = (user) => {
-    return jwt.sign(
-        { 
-            _id: user._id, 
-            email: user.email,
-            firstname:user.firstname,
-            username:user.username,
-        }, 
-        process.env.ACCESS_TOKEN_SECRET_USER, 
-        { expiresIn: '15m' }
-    );
-};
-
-const generateRefreshToken = (user) => {
-    return jwt.sign(
-        { 
-            _id: user._id, 
-        }, 
-        process.env.REFRESH_TOKEN_SECRET_USER, 
-        { expiresIn: '7d' }
-    );
-};
 
 const refreshAccessToken = async (req, res) => {
       const refreshToken = req.cookies.user_refresh_token;
@@ -222,9 +203,12 @@ const verifyOTP = async(req,res)=>{
                    
                    const user = await User.findById(userId);
                    
-                   
-                   const accessToken = generateAccessToken(user);
-                   const refreshToken = generateRefreshToken(user);
+                   const payload = {
+                    _id:user._id,
+                    email:user.email
+                   }
+                   const accessToken = generateAccessToken(payload);
+                   const refreshToken = generateRefreshToken(payload);
 
                    
                    await User.updateOne({_id: userId},{
@@ -233,23 +217,7 @@ const verifyOTP = async(req,res)=>{
                    });
                    await UserOTPVerification.deleteMany({userId});
 
-                   res.cookie('user_access_token', accessToken, {
-                    httpOnly: false,  
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'lax',
-                    maxAge: 15 * 60 * 1000,
-                    domain: "abeltomy.site",
-                    path: '/' 
-                  });
-
-                  res.cookie('user_refresh_token', refreshToken, {
-                    httpOnly: false,  
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'lax',
-                    maxAge:  7 * 24 * 60 * 60 * 1000,
-                    domain: "abeltomy.site",
-                    path: '/'
-                  });
+                   setAuthCookie(res,accessToken,refreshToken);
                   
                    res.json({
                     status: "VERIFIED",
@@ -325,33 +293,14 @@ const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const  payload = {
+      _id:user._id,
+      email:user.email
+    }
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
 
-    await User.findByIdAndUpdate(user._id, { refreshToken });
-
-    // console.log('Setting Cookies:', {
-    //   accessToken: accessToken.substring(0, 20) + '...',
-    //   refreshToken: refreshToken.substring(0, 20) + '...'
-    // });
-
-    res.cookie('user_access_token', accessToken, {
-      httpOnly: false,  
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000,
-      domain: "abeltomy.site",
-      path: '/' 
-    });
-
-    res.cookie('user_refresh_token', refreshToken, {
-      httpOnly: false,  
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      domain: "abeltomy.site",
-      path: '/'
-    });
+    setAuthCookie(res,accessToken,refreshToken);
 
     return res.json({
       status: "VERIFIED",
@@ -364,8 +313,6 @@ const login = async (req, res) => {
         phone: user.phone
       },
       role: "user",
-      // accessToken: accessToken,
-      // refreshToken: refreshToken
     });
 
   } catch (err) {
@@ -411,14 +358,6 @@ const login = async (req, res) => {
       target: offer.targetId?.name
     })));
 
-    // const validOffers = activeOffers.filter(offer => offer.targetId != null);
-
-    // console.log('Number of valid active offers found:', validOffers.length);
-    // console.log('Valid offers:', validOffers.map(o => ({
-    //   name: o.name,
-    //   startDate: o.startDate,
-    //   endDate: o.endDate
-    // })));
     
     return res.status(200).json(activeOffers)
 
@@ -601,27 +540,7 @@ const getRelatedProducts = async(req,res)=>{
 
 const logout = async (req, res) => {
     try {
-
-      await User.updateOne(
-        { _id: req.user._id },
-        { $unset: { refreshToken: 1 } }
-      );
-      
-      res.clearCookie('user_access_token', {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        domain: 'abeltomy.site',
-        path: '/'
-      });
-  
-      res.clearCookie('user_refresh_token', {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        domain: 'abeltomy.site',
-        path: '/'
-      });
+      clearAuthCookie(res)
   
       res.json({ message: 'Logged out successfully' });
     } catch (error) {

@@ -1,15 +1,12 @@
 const jwt = require('jsonwebtoken'); 
-const User = require('../model/userModel')
+const User = require('../model/userModel');
+const { verifyAccessToken } = require('../utils/helper/jwt.helper');
 
 const verifyJWT = async(req, res, next) => {
   try{
 
-  let token = req.cookies.user_access_token;
-  console.log("token from cookie:", token);
-
-  if (!token) {
-    token = req.headers.authorization?.split(' ')[1];
-  }
+  let token = req.cookies?.['access_token'];
+  // console.log("token from cookie:", token);
 
   if (!token) {
     return res.status(401).json({ 
@@ -18,22 +15,19 @@ const verifyJWT = async(req, res, next) => {
     });
   }
 
-  const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_USER);
+  const decoded = verifyAccessToken(token);
   const user = await User.findById(decoded?._id).select('-password -refreshToken').lean();
 
   if(!user){
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  // if (user.isBlocked) {
-  //   return res.status(403).json({ 
-  //     status: 'error',
-  //     message: 'Your account has been suspended.' 
-  //   });
-  // }
-
-  // console.log("successfully verified token  ")
-  req.user = user;
+  req.user = {
+    _id:user._id,
+    email:user.email,
+    username:user.username,
+    isAdmin:user.isAdmin,
+  };
   next();
 
 }catch(error){
@@ -52,17 +46,14 @@ const verifyJWT = async(req, res, next) => {
   
 const verifyAdmin = async (req, res, next) => {
   try {
-    const accessToken = req.cookies.admin_access_token;
+    const accessToken = req.cookies?.['access_token'];
 
     if (!accessToken) {
       return res.status(401).json({ message: "No access token provided" });
     }
 
-    jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET_ADMIN, async (err, decoded) => {
-      if (err) {
-        return res.status(401).json({ message: "Invalid or expired token" });
-      }
-
+    
+    const decoded = verifyAccessToken(token);
       // Check if user is admin
       const user = await User.findById(decoded.userId);
       if (!user?.isAdmin) {
@@ -74,8 +65,8 @@ const verifyAdmin = async (req, res, next) => {
         email: decoded.email,
         isAdmin: true
       };
+
       next();
-    });
   } catch (error) {
     console.error('Admin middleware error:', error);
     res.status(500).json({ message: "Internal server error" });
