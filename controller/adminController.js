@@ -3,81 +3,47 @@ const User = require("../model/userModel");
 const bcrypt = require('bcrypt');
 require("dotenv").config();
 const jwt = require('jsonwebtoken');
+const { verifyRefreshToken, generateAccessToken, generateRefreshToken } = require("../utils/helper/jwt.helper");
+const { setAuthCookie, clearAuthCookie } = require("../utils/helper/cookie.helper");
 
-
-
-const generateAccessToken = (user) => {
-    return jwt.sign(
-        { 
-            userId: user._id, 
-            email: user.email 
-        }, 
-        process.env.ACCESS_TOKEN_SECRET_ADMIN, 
-        { expiresIn: '15m' }
-    );
-};
-
-const generateRefreshToken = (user) => {
-    return jwt.sign(
-        { 
-            userId: user._id, 
-            email: user.email 
-        }, 
-        process.env.REFRESH_TOKEN_SECRET_ADMIN, 
-        { expiresIn: '7d' }
-    );
-};
 
 const refreshToken = async (req, res) => {
     try {
-      const refreshToken = req.cookies.admin_refresh_token;
+      const refreshToken = req.cookies.refresh_token;
+      console.log(refreshToken)
       
       if (!refreshToken) {
         return res.status(401).json({ message: "No refresh token provided" });
       }
   
-      jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET_ADMIN, async (err, decoded) => {
-        if (err) {
-          return res.status(403).json({ message: "Invalid refresh token" });
+      const decoded = verifyRefreshToken(refreshToken);
+        const user = await User.findById(decoded?._id);
+
+      if (!user) {
+        return res.status(401).json({ message: 'User not found'  });
+      }
+
+       const payload = {
+          _id:user._id,
+          email:user.email,
+          isAdmin:user.isAdmin
         }
+        const accessToken = generateAccessToken(payload);
+        const newRefreshToken = generateRefreshToken(payload);
 
-        const user = await User.findOne({ 
-          _id: decoded.userId,
-          refreshToken: refreshToken 
-        });
-  
-        if (!user) {
-          return res.status(401).json({ message: "User not found or token invalid" });
-        }
-  
-        const newAccessToken = generateAccessToken(user);
-        const newRefreshToken = generateRefreshToken(user);
-
-        await User.updateOne(
-          { _id: user._id },
-          { refreshToken: newRefreshToken }
-        );
-
-        res.cookie('admin_access_token', newAccessToken, {
-          httpOnly: false,  
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 15 * 60 * 1000,
-          domain: "abeltomy.site",
-          path: '/' 
-        });
-  
-        res.cookie('admin_refresh_token', newRefreshToken, {
-          httpOnly: false,  
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-          domain: "abeltomy.site",
-          path: '/' 
-        });
-  
-        res.json({ message: "Tokens refreshed successfully" });
+      setAuthCookie(res,accessToken,newRefreshToken);
+       return res.json({ 
+          status: "VERIFIED",
+          message: 'Token refreshed successfully',
+          user: {
+            id: user._id,
+            name: user.username,
+            email: user.email,
+          },
+          role: "admin"
       });
+
+      
     } catch (error) {
       console.error('Refresh token error:', error);
       res.status(500).json({ message: "Internal server error" });
@@ -92,30 +58,15 @@ const adminLogin =async (req,res)=>{
         if(adminInfo?.isAdmin){
             if(await bcrypt.compare( password,adminInfo.password)){
                 
-                const accessToken = generateAccessToken(adminInfo);
-                const refreshToken = generateRefreshToken(adminInfo);
-              
-                await User.updateOne({_id: adminInfo._id},{
-                    refreshToken: refreshToken 
-                  });
-
-                  res.cookie('admin_access_token', accessToken, {
-                    httpOnly: false,  
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'lax',
-                    maxAge: 15 * 60 * 1000,
-                    domain: "abeltomy.site",
-                    path: '/'
-                  });
-    
-                  res.cookie('admin_refresh_token', refreshToken, {
-                    httpOnly: false,  
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'lax',
-                    maxAge: 7 * 24 * 60 * 60 * 1000,
-                    domain: "abeltomy.site",
-                    path: '/'
-                  });
+               const  payload = {
+                  _id:adminInfo._id,
+                  email:adminInfo.email,
+                  isAdmin: adminInfo.isAdmin
+                }
+                const accessToken = generateAccessToken(payload);
+                const refreshToken = generateRefreshToken(payload);
+            
+                 setAuthCookie(res,accessToken,refreshToken);
                   
                    res.json({
                     status: "VERIFIED",
@@ -226,26 +177,7 @@ const isBlock = async(req,res)=>{
 
 const logoutAdmin = async (req, res) => {
   try {
-    await User.updateOne(
-      { refreshToken: { $exists: true } }, 
-      { $unset: { refreshToken: "" } }
-    );
-
-    res.clearCookie('admin_access_token', {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      domain: 'abeltomy.site',
-      path: '/' 
-    });
-
-    res.clearCookie('admin_refresh_token', {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      domain: 'abeltomy.site',
-      path: '/' 
-    });
+   clearAuthCookie(res)
 
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {

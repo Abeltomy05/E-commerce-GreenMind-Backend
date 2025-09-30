@@ -8,7 +8,7 @@ require("dotenv").config();
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const { config } = require("../utils/config");
-const { generateAccessToken, generateRefreshToken } = require("../utils/helper/jwt.helper");
+const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require("../utils/helper/jwt.helper");
 const { setAuthCookie, clearAuthCookie } = require("../utils/helper/cookie.helper");
 
 const securePassword = async(password)=>{
@@ -29,47 +29,38 @@ const transporter = nodemailer.createTransport({
 
 
 const refreshAccessToken = async (req, res) => {
-      const refreshToken = req.cookies.user_refresh_token;
-  
+  console.log("Refresh token from cookies:", req.cookies.refresh_token);
+      const refreshToken = req.cookies.refresh_token;
+      console.log("first")
       if (!refreshToken) {
         return res.status(401).json({ message: 'No refresh token' });
       }
   
+      console.log("second")
       // Verify refresh token
       try{
-        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET_USER);
+        const decoded = verifyRefreshToken(refreshToken);
         const user = await User.findById(decoded?._id);
+        console.log("third")
 
         if (!user) {
           return res.status(401).json({ message: 'User not found'  });
         }
-        if(refreshToken !== user?.refreshToken){
-          return res.status(401).json({ message: 'Invalid refresh token' });
+        
+        const payload = {
+          _id:user._id,
+          email:user.email,
+          isAdmin:user.isAdmin
         }
-        const accessToken = generateAccessToken(user);
-        const newRefreshToken = generateRefreshToken(user)
+        const accessToken = generateAccessToken(payload);
+        const newRefreshToken = generateRefreshToken(payload)
 
-        await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
 
-        res.cookie('user_access_token', accessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 1 * 60 * 1000 // 15 minutes
-        });
-
-        res.cookie('user_refresh_token', newRefreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        });
+        setAuthCookie(res,accessToken,newRefreshToken)
 
         return res.json({ 
           status: "VERIFIED",
           message: 'Token refreshed successfully',
-          accessToken,
-          refreshToken: newRefreshToken,
           user: {
             id: user._id,
             name: user.username,
@@ -144,6 +135,7 @@ const signup = async(req,res)=>{
 const sendOTPVerificationEmail = async({id,email})=>{
      try{
         const otp = `${Math.floor(1000 + Math.random() * 9000)}`
+        console.log('OTP:',otp)
          
         const mailOptions = {
             from: process.env.AUTH_EMAIL,
@@ -205,7 +197,8 @@ const verifyOTP = async(req,res)=>{
                    
                    const payload = {
                     _id:user._id,
-                    email:user.email
+                    email:user.email,
+                    isAdmin: user.isAdmin
                    }
                    const accessToken = generateAccessToken(payload);
                    const refreshToken = generateRefreshToken(payload);
@@ -295,7 +288,8 @@ const login = async (req, res) => {
 
     const  payload = {
       _id:user._id,
-      email:user.email
+      email:user.email,
+      isAdmin: user.isAdmin
     }
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);

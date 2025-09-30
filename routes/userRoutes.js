@@ -16,7 +16,7 @@ const {getBestSellingProducts,categoriesForHome,categoryImage,getReviewsForHome,
 userRoute.post("/signup",signup);
 userRoute.post("/verifyOTP",verifyOTP)
 userRoute.post("/resendOTP",resendOTP)
-userRoute.get('/refresh-token', refreshAccessToken);
+userRoute.post('/refresh-token', refreshAccessToken);
 userRoute.post("/login",login);
 userRoute.get("/getproductdata",verifyJWT,getProductData);
 userRoute.get("/getactiveoffers",verifyJWT,getActiveOffers);

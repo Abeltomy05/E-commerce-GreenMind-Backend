@@ -46,22 +46,22 @@ const verifyJWT = async(req, res, next) => {
   
 const verifyAdmin = async (req, res, next) => {
   try {
-    const accessToken = req.cookies?.['access_token'];
+    let accessToken = req.cookies?.['access_token'];
 
     if (!accessToken) {
       return res.status(401).json({ message: "No access token provided" });
     }
 
     
-    const decoded = verifyAccessToken(token);
+    const decoded = verifyAccessToken(accessToken);
       // Check if user is admin
-      const user = await User.findById(decoded.userId);
+      const user = await User.findById(decoded._id);
       if (!user?.isAdmin) {
         return res.status(403).json({ message: "Admin access required" });
       }
 
       req.user = {
-        userId: decoded.userId,
+        _id: decoded.userId,
         email: decoded.email,
         isAdmin: true
       };
