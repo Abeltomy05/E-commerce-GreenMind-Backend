@@ -19,7 +19,7 @@ const googleCallback = async (req, res) => {
     setAuthCookie(res, accessToken, refreshToken);
 
     console.log("Google auth successful, redirecting to home");
-    res.redirect(`${config.CLIENT_URL}/user/home`);
+    res.redirect(`${config.CLIENT_URL}/user/auth-check`);
   } catch (error) {
     console.error("Google callback error:", error);
     res.redirect(`${config.CLIENT_URL}/user/login`);
@@ -29,6 +29,7 @@ const googleCallback = async (req, res) => {
 const loginSuccess = async (req, res) => {
   try {
     if (req.user) {
+      console.log("Login success",req.user)
       res.status(200).json({
         success: true,
         message: "Successfully Logged In",
