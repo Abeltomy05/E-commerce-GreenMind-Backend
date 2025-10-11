@@ -6,7 +6,7 @@ const {cloudinaryImgUpload} = require("../controller/cloudinaryController")
 const {userCount} = require("../controller/dashboardController")
 const {categoryData,addCategoryData,categoryStatus,categoryEdit,categoryDataForAddProduct} = require('../controller/categoryController')
 const authMiddleware = require("../middleware/authMiddleware")
-const {getOrderDataAdmin,changeOrderStatus,cancelOrderAdmin,getReturnRequests,approveReturnRequest} = require('../controller/orderController')
+const {getOrderDataAdmin,getOrderDetailsAdmin,changeOrderStatus,cancelOrderAdmin,getReturnRequests,approveReturnRequest} = require('../controller/orderController')
 const {coupenData,createcoupon,deletecoupon} = require('../controller/coupenController')
 const {getOrders,getCategorySalesData,getTopItems } = require('../controller/adminDashboard')
 const {getOffers,createOffer,getProducts,getCategories,deleteOffer} = require('../controller/offerController')
@@ -33,6 +33,7 @@ adminRoute.put('/editcategory/:id',verifyAdmin,categoryEdit);
 adminRoute.get('/categorydata-addproduct',verifyAdmin,categoryDataForAddProduct);
 //order
 adminRoute.get('/getorderdata',verifyAdmin,getOrderDataAdmin)
+adminRoute.get('/getorderdetails/:orderId',verifyAdmin,getOrderDetailsAdmin)
 adminRoute.patch('/changeorderstatus/:id',verifyAdmin,changeOrderStatus)
 adminRoute.patch('/cancelorder/:id',verifyAdmin,cancelOrderAdmin)
 //return
