@@ -146,6 +146,11 @@ const getCartData = async (req, res) => {
       .lean();
 
       const formattedCartItems = await Promise.all(cartItems.map(async item => {
+         if (!item.product) {
+          await Cart.deleteOne({ _id: item._id });
+          return null;
+        }
+
         let price = item.variant.price;
         let offerDetails = null;
 
