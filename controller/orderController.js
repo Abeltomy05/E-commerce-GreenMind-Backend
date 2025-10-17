@@ -1266,99 +1266,112 @@ const getReturnRequests = async (req, res) => {
 
 const approveReturnRequest = async (req, res) => {
     try {
-        const { orderId, productId } = req.body;
-
-        const existingOrder = await Order.findOne({
-            _id: orderId,
-            'products.product': productId
-        });
-        
-        if (!existingOrder) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Order not found' 
-            });
+      const { orderId, productId } = req.body;
+  
+      if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
+        return res.status(400).json({ success: false, message: 'Invalid order ID' });
+      }
+  
+      const existingOrder = await Order.findOne({
+        _id: orderId,
+        'products.product': productId
+      })
+        .populate([
+          {
+            path: 'products.product',
+            select: 'name variants currentOffer',
+            populate: {
+              path: 'currentOffer',
+              select: 'discountType discountValue maxDiscountAmount'
+            }
+          },
+          {
+            path: 'couponApplied',
+            select: 'discount maximumDiscountAmount'
+          }
+        ]);
+  
+      if (!existingOrder) {
+        return res.status(404).json({ success: false, message: 'Order not found' });
+      }
+  
+      const returnedProduct = existingOrder.products.find(
+        p => p.product._id.toString() === productId
+      );
+  
+      if (!returnedProduct) {
+        return res.status(404).json({ success: false, message: 'Product not found in order' });
+      }
+  
+      if (returnedProduct.returnStatus?.adminApproval) {
+        return res.status(400).json({ success: false, message: 'Return request already approved' });
+      }
+  
+      // 🔹 Calculate refund amount using same logic as getOrderForReturn
+      const product = returnedProduct.product;
+      const variant = product.variants.find(v => v.size === returnedProduct.variantSize);
+      if (!variant) {
+        return res.status(400).json({ success: false, message: 'Variant not found for product' });
+      }
+  
+      let finalPrice = variant.price;
+  
+      // 🟢 Apply product offer discount
+      if (product.currentOffer) {
+        const offer = product.currentOffer;
+        if (offer.discountType === 'PERCENTAGE') {
+          const discountAmount = (finalPrice * offer.discountValue) / 100;
+          finalPrice -= Math.min(discountAmount, offer.maxDiscountAmount || discountAmount);
+        } else {
+          finalPrice -= Math.min(offer.discountValue, offer.maxDiscountAmount || offer.discountValue);
         }
-
-        const returnedProduct = existingOrder.products.find(
-            p => p.product.toString() === productId
-        );
-
-        if (!returnedProduct) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Product not found in order' 
-            });
-        }
-
-        if (returnedProduct.returnStatus.adminApproval) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Return request already approved' 
-            });
-        }
-
-        // const existingRefund = await Wallet.findOne({
-        //     order: orderId,
-        //     type: 'returned'
-        // });
-
-        // if (existingRefund) {
-        //     return res.status(400).json({ 
-        //         success: false, 
-        //         message: 'Refund has already been processed for this return' 
-        //     });
-        // }
-
-        const order = await Order.findOneAndUpdate(
-            { 
-                _id: orderId,
-                'products.product': productId
-            },
-            {
-                $set: {
-                    'products.$.returnStatus.adminApproval': true,
-                }
-            },
-            { new: true }
-        );
-    
-        if (!order) {
-            return res.status(404).json({ success: false, message: 'Order not found' });
-        }
-
-            const productPrice = order.totalPrice / order.products.length;
-            const refundAmount = productPrice - (order.discountAmount / order.products.length);
-
-            const lastWalletTransaction = await Wallet.findOne({ user: order.user })
-                .sort({ createdAt: -1 });
-
-            const currentBalance = lastWalletTransaction ? lastWalletTransaction.balance : 0;
-            const newBalance = currentBalance + refundAmount;  
-
-            await Wallet.create({
-                user: order.user,
-                order: orderId,
-                type: 'returned',
-                amount: refundAmount,
-                balance: newBalance
-            });
-
-
-        return res.json({ 
-            success: true, 
-            message: 'Return request approved successfully',
-            // refunded: order.paymentInfo.method !== 'cod'
-        });
-
-    } catch(error) {
-        console.error('Error approving return:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Server error' 
-        });
+      }
+  
+      // 🟢 Apply coupon discount proportionally (same logic as return page)
+      if (existingOrder.couponApplied && existingOrder.discountAmount > 0) {
+        const subtotalBeforeCoupon = existingOrder.totalPrice + existingOrder.discountAmount;
+        const maxDiscount =
+          existingOrder.couponApplied.maximumDiscountAmount || existingOrder.discountAmount;
+        const couponDiscount =
+          (finalPrice / subtotalBeforeCoupon) *
+          Math.min(existingOrder.discountAmount, maxDiscount);
+        finalPrice -= couponDiscount;
+      }
+  
+      finalPrice = Math.max(0, Math.round(finalPrice * 100) / 100);
+      const refundAmount = Math.floor(finalPrice * returnedProduct.quantity);
+  
+      // 🔹 Update return status in order
+      await Order.findOneAndUpdate(
+        { _id: orderId, 'products.product': productId },
+        { $set: { 'products.$.returnStatus.adminApproval': true } },
+        { new: true }
+      );
+  
+      // 🔹 Update wallet
+      const lastWalletTransaction = await Wallet.findOne({ user: existingOrder.user })
+        .sort({ createdAt: -1 });
+      const currentBalance = lastWalletTransaction ? lastWalletTransaction.balance : 0;
+      const newBalance = currentBalance + refundAmount;
+  
+      await Wallet.create({
+        user: existingOrder.user,
+        order: orderId,
+        type: 'returned',
+        amount: refundAmount,
+        balance: newBalance
+      });
+  
+      return res.json({
+        success: true,
+        message: 'Return request approved successfully',
+        refundedAmount: refundAmount
+      });
+    } catch (error) {
+      console.error('Error approving return:', error);
+      return res.status(500).json({ success: false, message: 'Server error' });
     }
-}
+  };
 
 const rateOrder = async (req, res) => {
     try {
