@@ -548,11 +548,24 @@ const getOrderData = async(req,res)=>{
             totalPrice: order.totalPrice,
             status: order.paymentInfo.status,
             createdAt: order.createdAt,
-            products: order.products.map(item => ({
-                productName: item.product.name,
-                quantity: item.quantity,
-                productPrice: item.product.price
-            })),
+             products: order.products
+                .map(item => {
+                if (!item.product) {
+                    return {
+                    productName: '[Deleted Product]',
+                    quantity: item.quantity,
+                    productPrice: item.price || 0,
+                    deleted: true
+                    };
+                }
+
+                return {
+                    productName: item.product.name,
+                    quantity: item.quantity,
+                    productPrice: item.product.price
+                };
+                })
+                .filter(Boolean), 
             paymentMethod: order.paymentInfo.method,
             shippingAddress: order.address,
             expectedDeliveryDate: order.expectedDeliveryDate,
@@ -623,6 +636,21 @@ const getSingleOrderDetail = async(req,res)=>{
        }
 
        const products = order.products.map(item => {
+         if (!item.product) {
+            return {
+                _id: null,
+                name: 'Product no longer available',
+                image: '',
+                quantity: item.quantity || 1,
+                price: 0,
+                finalPrice: 0,
+                type: 'N/A',
+                brand: 'N/A',
+                offerDiscount: 0,
+                variantSize: item.variantSize || 'N/A',
+                isDeletedProduct: true
+             };
+         }
         const selectedVariant = item.product?.variants?.find(variant => 
             variant.size.toLowerCase() === item.variantSize?.toLowerCase()
         );
@@ -656,8 +684,8 @@ const getSingleOrderDetail = async(req,res)=>{
             quantity: item.quantity || 1,
             price: basePrice,
             finalPrice: finalPrice,
-            type: item.product?.type,
-            brand: item.product?.brand,
+            type: item.product?.type || 'N/A',
+            brand: item.product?.brand || 'N/A',
             offerDiscount: offerDiscount * item.quantity,
             variantSize: item.variantSize
         };
@@ -1075,26 +1103,24 @@ const getOrderForReturn = async (req, res) => {
         return res.status(404).json({ message: 'Order not found' });
       }
   
-      if (!order.paymentInfo || !order.paymentInfo.status) {
-        return res.status(400).json({ message: 'Invalid order status' });
-      }
-  
-      const orderDate = new Date(order.createdAt);
-      const today = new Date();
-      const daysSinceOrder = Math.floor((today - orderDate) / (1000 * 60 * 60 * 24));
-  
-      if (daysSinceOrder > 30) {
-        return res.status(400).json({ message: 'Order is no longer eligible for return' });
-      }
-  
       if (order.paymentInfo.status !== 'DELIVERED') {
         return res.status(400).json({ message: 'Only delivered orders can be returned' });
+       }
+  
+      const deliveredAt = order.updatedAt || order.createdAt;
+      const daysSinceDelivery = Math.floor((Date.now() - new Date(deliveredAt)) / (1000 * 60 * 60 * 24));
+
+      if (daysSinceDelivery > 30) {
+        return res.status(400).json({ message: 'Order is no longer eligible for return' });
       }
   
       // Calculate final prices with offers and coupon
       const productsWithFinalPrices = order.products.map(orderProduct => {
         const product = orderProduct.product;
-        const variant = product.variants[0];
+        if (!product) return null;
+
+        const variant = product.variants.find(v => v.size === orderProduct.variantSize);
+        if (!variant) return null;
         let finalPrice = variant.price;
   
         // Apply product offer if exists
@@ -1109,23 +1135,42 @@ const getOrderForReturn = async (req, res) => {
         }
   
         // Apply coupon discount proportionally if exists
-        if (order.couponApplied) {
-          const couponDiscount = (finalPrice / order.totalPrice) * Math.min(
-            order.discountAmount,
-            order.couponApplied.maximumDiscountAmount
-          );
-          finalPrice -= couponDiscount;
+        if (order.couponApplied && order.discountAmount > 0) {
+            const subtotalBeforeCoupon = order.totalPrice + order.discountAmount;
+            const maxDiscount = order.couponApplied.maximumDiscountAmount || order.discountAmount;
+            const couponDiscount = (finalPrice / subtotalBeforeCoupon) * Math.min(order.discountAmount, maxDiscount);
+            finalPrice -= couponDiscount;
         }
-  
+
+        finalPrice = Math.max(0, Math.round(finalPrice * 100) / 100);
+        const totalItemPrice = finalPrice * orderProduct.quantity;
+
+        const eligibleForReturn = order.paymentInfo.status === 'DELIVERED' &&
+                            daysSinceDelivery <= 30 &&
+                            !orderProduct.returnStatus?.isReturned;
+
         return {
-          ...orderProduct.toObject(),
-          finalPrice: Math.round(finalPrice * 100) / 100
+             product: {
+                _id: product._id,
+                name: product.name,
+                images: product.images,
+                category: product.category?.name,
+                variantSize: orderProduct.variantSize,
+            },
+            quantity: orderProduct.quantity,
+            finalPrice,
+            totalItemPrice,
+            eligibleForReturn,
         };
-      });
+      }).filter(Boolean);
   
-      res.json({
-        ...order.toObject(),
-        products: productsWithFinalPrices
+      res.status(200).json({
+        success: true,
+        orderId: order._id,
+        orderDate: order.createdAt,
+        totalPrice: order.totalPrice,
+        products: productsWithFinalPrices,
+        message: 'Order details fetched successfully for return'
       });
     } catch (error) {
       console.error('Error in getOrderForReturn:', error);
