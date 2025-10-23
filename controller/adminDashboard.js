@@ -4,92 +4,170 @@ const Category = require('../model/categoryModel')
 
 const getOrders = async (req, res) => {
     try {
-      const { startDate, endDate, isDeleted } = req.query;
-  
-      const query = {
-        createdAt: { 
-          $gte: new Date(startDate), 
-          $lte: new Date(endDate) 
-        },
-        isDeleted: isDeleted === 'true' ? true : false,
-        'paymentInfo.status': { 
-          $in: ['CONFIRMED', 'DELIVERED', 'ON THE ROAD','PENDING'],
-          $ne: 'CANCELED'
-        }
-      };
+        const { startDate, endDate, isDeleted } = req.query;
 
-      let orders = await Order.find(query)
-      .populate('user', '_id firstname lastname')
-      .populate({
-          path: 'products.product',
-          select: 'name variants category currentOffer',
-          populate: [{
-              path: 'category',
-              select: 'name'
-          }, {
-              path: 'currentOffer',
-              select: 'discountPercentage'
-          }]
-      })
-      .populate('couponApplied', 'discountPercentage maxDiscount')
-      .lean();
-  
-      orders = orders
-      .filter(order => order.products.some(p => !p.returnStatus?.isReturned))
-      .filter(order => order.products.every(p => p.product))
-      .map(order => {
-          const validProducts = order.products.filter(p => !p.returnStatus?.isReturned);
+        const query = {
+            createdAt: { 
+                $gte: new Date(startDate), 
+                $lte: new Date(endDate) 
+            },
+            isDeleted: isDeleted === 'true',
+            'paymentInfo.status': { 
+                $in: ['CONFIRMED', 'DELIVERED', 'ON THE ROAD','PENDING'],
+                $ne: 'CANCELED'
+            }
+        };
 
-          const originalTotal = validProducts.reduce((sum, product) => {
-          const variant = product.product.variants.find(v => v.size === product.variantSize);
-          if (!variant) return sum;
-          return sum + (variant.price * product.quantity);
-          }, 0);
+        let orders = await Order.find(query)
+            .populate('user', '_id firstname lastname')
+            .populate({
+                path: 'products.product',
+                select: 'name variants category currentOffer',
+                populate: [
+                    { path: 'category', select: 'name' },
+                    { path: 'currentOffer', select: 'discountType discountValue maxDiscountAmount' }
+                ]
+            })
+            .populate('couponApplied', 'discountAmount discountPercentage maxDiscount')
+            .lean();
 
-         const shippingFee = Number(order.shippingFee || 0);
+        orders = orders
+            .filter(order => order.products.some(p => !p.returnStatus?.isReturned))
+            .filter(order => order.products.every(p => p.product))
+            .map(order => {
+                const allProducts = order.products;
 
-         const productDiscounts = validProducts.reduce((sum, product) => {
-          const variant = product.product.variants.find(v => v.size === product.variantSize || v._id === product.variantId);
-          if (!variant) return sum;
-          const offerPercent = product.product.currentOffer?.discountPercentage || 0;
-          const discountAmt = (variant.price * (offerPercent / 100)) * (product.quantity || 0);
-          return sum + discountAmt;
-        }, 0);
+                // 1️⃣ Compute subtotal after product offers (including returned products for coupon base)
+                const subtotalAfterOffersAll = allProducts.reduce((acc, p) => {
+                    const product = p.product;
+                    if (!product) return acc;
+                    const variant = product.variants.find(v => v.size === p.variantSize || v._id === p.variantId);
+                    if (!variant) return acc;
 
-         let couponDiscount = 0;
-       if (order.couponApplied) {
-          const couponPercent = order.couponApplied.discountPercentage || 0;
-          const maxDiscount = order.couponApplied.maxDiscount || Infinity;
-          const calc = (originalTotal * (couponPercent / 100));
-          couponDiscount = Math.min(calc, maxDiscount);
-        }
+                    let price = variant.price;
 
-        const totalDiscount = productDiscounts + couponDiscount;
-        const computedFinalPrice = (originalTotal - totalDiscount) + shippingFee;
+                    // Apply product offer if exists
+                    if (product.currentOffer) {
+                        const offer = product.currentOffer;
+                        if (offer.discountType === 'PERCENTAGE') {
+                            const discountAmt = (price * offer.discountValue) / 100;
+                            price -= Math.min(discountAmt, offer.maxDiscountAmount || discountAmt);
+                        } else {
+                            price -= Math.min(offer.discountValue, offer.maxDiscountAmount || offer.discountValue);
+                        }
+                    }
 
-          return {
-              ...order,
-             products: order.products.map(product => ({
-              ...product,
-              variant: product.product.variants.find(v => v.size === product.variantSize)
-            })),
-             originalTotal: Number(originalTotal.toFixed(2)),
-            productDiscounts: Number(productDiscounts.toFixed(2)),
-            couponDiscount: Number(couponDiscount.toFixed(2)),
-            discountAmount: Number(totalDiscount.toFixed(2)),  
-            computedTotal: Number(computedFinalPrice.toFixed(2)),
-            };
-      });
+                    return acc + price * p.quantity;
+                }, 0);
 
-      console.log(orders)
+                // 2️⃣ Compute shipping fee
+                const shippingFee = Number(order.shippingFee || 0);
+
+                // 3️⃣ Compute product discounts only for valid (non-returned) products
+                const validProducts = allProducts.filter(p => !p.returnStatus?.isReturned);
+
+                const productDiscounts = validProducts.reduce((acc, p) => {
+                    const product = p.product;
+                    if (!product) return acc;
+                    const variant = product.variants.find(v => v.size === p.variantSize || v._id === p.variantId);
+                    if (!variant) return acc;
+
+                    let price = variant.price;
+
+                    if (product.currentOffer) {
+                        const offer = product.currentOffer;
+                        if (offer.discountType === 'PERCENTAGE') {
+                            const discountAmt = (price * offer.discountValue) / 100;
+                            price -= Math.min(discountAmt, offer.maxDiscountAmount || discountAmt);
+                        } else {
+                            price -= Math.min(offer.discountValue, offer.maxDiscountAmount || offer.discountValue);
+                        }
+                    }
+
+                    return acc + (variant.price * p.quantity - price * p.quantity); // total offer discount
+                }, 0);
+
+                // 4️⃣ Compute coupon discount proportionally (based on subtotal after offers for all products)
+                let couponDiscount = 0;
+                if (order.couponApplied && order.discountAmount > 0 && subtotalAfterOffersAll > 0) {
+                    couponDiscount = validProducts.reduce((acc, p) => {
+                        const product = p.product;
+                        if (!product) return acc;
+                        const variant = product.variants.find(v => v.size === p.variantSize || v._id === p.variantId);
+                        if (!variant) return acc;
+
+                        let price = variant.price;
+                        if (product.currentOffer) {
+                            const offer = product.currentOffer;
+                            if (offer.discountType === 'PERCENTAGE') {
+                                const discountAmt = (price * offer.discountValue) / 100;
+                                price -= Math.min(discountAmt, offer.maxDiscountAmount || discountAmt);
+                            } else {
+                                price -= Math.min(offer.discountValue, offer.maxDiscountAmount || offer.discountValue);
+                            }
+                        }
+
+                        // proportional coupon share (using all products subtotal for base)
+                        const productShare = (price * p.quantity) / subtotalAfterOffersAll;
+                        return acc + productShare * order.discountAmount;
+                    }, 0);
+                }
+
+                const totalDiscount = productDiscounts + couponDiscount;
+
+                // 5️⃣ Compute final total for valid products
+                const computedFinalPrice = validProducts.reduce((sum, p) => {
+                    const product = p.product;
+                    if (!product) return sum;
+                    const variant = product.variants.find(v => v.size === p.variantSize || v._id === p.variantId);
+                    if (!variant) return sum;
+
+                    let price = variant.price;
+                    if (product.currentOffer) {
+                        const offer = product.currentOffer;
+                        if (offer.discountType === 'PERCENTAGE') {
+                            const discountAmt = (price * offer.discountValue) / 100;
+                            price -= Math.min(discountAmt, offer.maxDiscountAmount || discountAmt);
+                        } else {
+                            price -= Math.min(offer.discountValue, offer.maxDiscountAmount || offer.discountValue);
+                        }
+                    }
+
+                    // proportional coupon
+                    if (order.couponApplied && order.discountAmount > 0 && subtotalAfterOffersAll > 0) {
+                        const productShare = (price * p.quantity) / subtotalAfterOffersAll;
+                        const proportionalDiscount = productShare * order.discountAmount;
+                        price -= proportionalDiscount / p.quantity;
+                    }
+
+                    return sum + price * p.quantity;
+                }, 0) + shippingFee;
+
+                return {
+                    ...order,
+                    products: allProducts.map(p => ({
+                        ...p,
+                        variant: p.product.variants.find(v => v.size === p.variantSize || v._id === p.variantId)
+                    })),
+                    originalTotal: Number(validProducts.reduce((sum, p) => {
+                        const variant = p.product.variants.find(v => v.size === p.variantSize || v._id === p.variantId);
+                        return sum + (variant ? variant.price * p.quantity : 0);
+                    }, 0).toFixed(2)),
+                    productDiscounts: Number(productDiscounts.toFixed(2)),
+                    couponDiscount: Number(couponDiscount.toFixed(2)),
+                    discountAmount: Number(totalDiscount.toFixed(2)),
+                    computedTotal: Number(computedFinalPrice.toFixed(2))
+                };
+            });
+
         res.json(orders);
 
     } catch (error) {
-      console.error('Error in getOrders:', error);
-      res.status(500).json({ message: 'Failed to fetch orders' });
+        console.error('Error in getOrders:', error);
+        res.status(500).json({ message: 'Failed to fetch orders' });
     }
- };
-  
+};
+
 
 const getCategorySalesData = async (req, res) => {
     try {
