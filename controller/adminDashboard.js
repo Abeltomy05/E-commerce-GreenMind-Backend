@@ -35,57 +35,60 @@ const getOrders = async (req, res) => {
       .lean();
   
       orders = orders
-      .filter(order => !order.products.some(p => p.returnStatus?.isReturned))
+      .filter(order => order.products.some(p => !p.returnStatus?.isReturned))
       .filter(order => order.products.every(p => p.product))
       .map(order => {
-          const originalTotal = order.products.reduce((sum, product) => {
-              const variant = product.product.variants.find(v => v.size === product.variantSize);
-              if (!variant) return sum;
-              return sum + (variant.price * product.quantity);
+          const validProducts = order.products.filter(p => !p.returnStatus?.isReturned);
+
+          const originalTotal = validProducts.reduce((sum, product) => {
+          const variant = product.product.variants.find(v => v.size === product.variantSize);
+          if (!variant) return sum;
+          return sum + (variant.price * product.quantity);
           }, 0);
 
-          const totalWithShipping = originalTotal + (order.shippingFee || 0);
+         const shippingFee = Number(order.shippingFee || 0);
 
-          let productDiscounts = order.products.reduce((sum, product) => {
-              const variant = product.product.variants.find(v => v.size === product.variantSize);
-              if (!variant) return sum;
-              
-              const offerDiscount = product.product.currentOffer?.discountPercentage || 0;
-              const discountAmount = (variant.price * offerDiscount / 100) * product.quantity;
-              return sum + discountAmount;
-          }, 0);
+         const productDiscounts = validProducts.reduce((sum, product) => {
+          const variant = product.product.variants.find(v => v.size === product.variantSize || v._id === product.variantId);
+          if (!variant) return sum;
+          const offerPercent = product.product.currentOffer?.discountPercentage || 0;
+          const discountAmt = (variant.price * (offerPercent / 100)) * (product.quantity || 0);
+          return sum + discountAmt;
+        }, 0);
 
-          let couponDiscount = 0;
-          if (order.couponApplied) {
-              const discountAmount = (originalTotal * order.couponApplied.discountPercentage / 100);
-              couponDiscount = Math.min(discountAmount, order.couponApplied.maxDiscount || discountAmount);
-          }
+         let couponDiscount = 0;
+       if (order.couponApplied) {
+          const couponPercent = order.couponApplied.discountPercentage || 0;
+          const maxDiscount = order.couponApplied.maxDiscount || Infinity;
+          const calc = (originalTotal * (couponPercent / 100));
+          couponDiscount = Math.min(calc, maxDiscount);
+        }
 
-          const totalDiscount = productDiscounts + couponDiscount;
-
-          const calculatedFinalPrice = totalWithShipping - totalDiscount;
-          const actualTotalPrice = order.totalPrice;
-
-          const additionalDiscount = Math.max(0, calculatedFinalPrice - actualTotalPrice);
-          const finalTotalDiscount = totalDiscount + additionalDiscount;
+        const totalDiscount = productDiscounts + couponDiscount;
+        const computedFinalPrice = (originalTotal - totalDiscount) + shippingFee;
 
           return {
               ...order,
-              products: order.products.map(product => ({
-                  ...product,
-                  variant: product.product.variants.find(v => v.size === product.variantSize)
-              })),
-              discountAmount: Number(finalTotalDiscount.toFixed(2))
-          };
+             products: order.products.map(product => ({
+              ...product,
+              variant: product.product.variants.find(v => v.size === product.variantSize)
+            })),
+             originalTotal: Number(originalTotal.toFixed(2)),
+            productDiscounts: Number(productDiscounts.toFixed(2)),
+            couponDiscount: Number(couponDiscount.toFixed(2)),
+            discountAmount: Number(totalDiscount.toFixed(2)),  
+            computedTotal: Number(computedFinalPrice.toFixed(2)),
+            };
       });
 
+      console.log(orders)
         res.json(orders);
 
     } catch (error) {
       console.error('Error in getOrders:', error);
       res.status(500).json({ message: 'Failed to fetch orders' });
     }
-  };
+ };
   
 
 const getCategorySalesData = async (req, res) => {
