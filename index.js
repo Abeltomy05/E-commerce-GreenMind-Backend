@@ -30,7 +30,7 @@ configurePassport();
 app.use(passport.initialize());
 
 const corsOptions = {
-    origin: config.CLIENT_URL, 
+    origin: "*", 
     credentials: true, 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
